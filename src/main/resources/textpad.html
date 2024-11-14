@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+
+<head xmlns="http://www.w3.org/1999/xhtml">
+    <meta charset="utf-8" />
+    <title>Textpad</title>
+    <style>
+        html, body {
+          height: 100%; box-sizing: border-box; margin: 0;
+        }
+
+        textarea {
+          height: calc(100% - 2rem); box-sizing: border-box;
+          border: none; outline: none; resize: none;
+          font-family: monospace;
+        }
+
+        #textbox {
+          border-right: 1px solid PaleTurquoise;
+          border-radius: 0px;
+          border-color: darkgray;
+          background-color: transparent;
+          width: 100%;
+          padding: 0.5em;
+          overflow-y: scroll;
+        }
+    </style>
+</head>
+<body xmlns="http://www.w3.org/1999/xhtml">
+<textarea id="textbox" spellcheck="false" oninput="send()" onfocus="send()" content=""></textarea>
+<script>
+
+    const socket = new WebSocket("ws://localhost:9002/editFile/ws");
+    const textbox = document.getElementById("textbox");
+
+    textbox.onkeydown = function (event) {
+        if (event.key === "Tab") {
+            event.preventDefault();
+            var text = this.value, s = this.selectionStart, e = this.selectionEnd;
+            this.value = text.substring(0, s) + '\t' + text.substring(e);
+            this.selectionStart = this.selectionEnd = s + 1;
+        }
+    };
+
+    socket.onmessage = function (event) {
+        textbox.value += event.data + "\n"
+    };
+
+    function send() {
+        socket.send("");
+    }
+
+    // https://github.com/browserpad/browserpad/blob/main/script.js
+</script>
+</body>

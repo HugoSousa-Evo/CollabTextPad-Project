@@ -1,0 +1,9 @@
+
+
+- Up to 4(?) people access a file at once
+
+- One person becomes the host and provides access to file stored in memory
+
+- Others can edit the file through the browser
+
+- For now support only txt files
