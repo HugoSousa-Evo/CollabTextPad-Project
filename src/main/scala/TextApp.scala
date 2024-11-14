@@ -45,31 +45,38 @@ object TextApp extends IOApp {
         ).getOrElseF(NotFound())
     }
 
-    def wsOperationRoute(wsb: WebSocketBuilder2[IO]): HttpRoutes[IO] = HttpRoutes.of[IO] {
+    def wsOperationRoute(wsb: WebSocketBuilder2[IO]): HttpRoutes[IO] = {
 
-      // curl "localhost:9002/editFile/ws"
-      case req @ GET -> Root / "editFile" / "ws"=>
+      HttpRoutes.of[IO] {
 
-        val wrappedQueue: IO[Queue[IO, WebSocketFrame]] = {
-          Queue.unbounded[IO, WebSocketFrame]
-        }
+        // curl "localhost:9002/editFile/ws"
+        case req@GET -> Root / "editFile" / "ws" =>
 
-        wrappedQueue.flatMap { actualQueue =>
-
-          val send: Stream[IO, WebSocketFrame] = {
-            Stream.fromQueueUnterminated(actualQueue)
+          val wrappedQueue: IO[Queue[IO, WebSocketFrame]] = {
+            Queue.unbounded[IO, WebSocketFrame]
           }
 
-          val receive: Pipe[IO, WebSocketFrame, Unit] = {
+          wrappedQueue.flatMap { actualQueue =>
 
-            val source = scala.io.Source.fromFile(getClass.getClassLoader.getResource("CollabFile.txt").getFile)
-            val lines = try source.getLines().mkString("\n") finally source.close()
+            val send: Stream[IO, WebSocketFrame] = {
+              Stream.fromQueueUnterminated(actualQueue)
+            }
 
-            _.foreach(_ => actualQueue.offer(WebSocketFrame.Text(lines)))
+            val receive: Pipe[IO, WebSocketFrame, Unit] = {
+
+              val source = scala.io.Source.fromFile(getClass.getClassLoader.getResource("CollabFile.txt").getFile)
+              val lines = try source.getLines().mkString("\n") finally source.close()
+
+              //            _.foreach{
+              //              case text: WebSocketFrame.Text => IO.println(text.str)
+              //            }
+
+              _.foreach(_ => actualQueue.offer(WebSocketFrame.Text(lines)))
+            }
+
+            wsb.build(send, receive)
           }
-
-          wsb.build(send, receive)
-        }
+      }
 
     }
 

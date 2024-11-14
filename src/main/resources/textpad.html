@@ -26,7 +26,7 @@
     </style>
 </head>
 <body xmlns="http://www.w3.org/1999/xhtml">
-<textarea id="textbox" spellcheck="false" oninput="send()" onfocus="send()" content=""></textarea>
+<textarea id="textbox" spellcheck="false" content=""></textarea>
 <script>
 
     const socket = new WebSocket("ws://localhost:9002/editFile/ws");
@@ -41,9 +41,26 @@
         }
     };
 
+    textbox.oninput = function (event) {
+
+        console.log(event.target.selectionStart)
+        console.log(event.target.selectionEnd)
+
+        if(event.data != null) {
+            p = "" + event.target.selectionStart - event.data.length
+            socket.send("Data: " + event.data + " | Position: " + p);
+        }
+
+    }
+
     socket.onmessage = function (event) {
         textbox.value += event.data + "\n"
     };
+
+    socket.onopen = function (event) {
+        this.send("");
+    }
+
 
     function send() {
         socket.send("");
