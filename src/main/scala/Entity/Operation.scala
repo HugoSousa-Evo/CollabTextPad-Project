@@ -1,6 +1,14 @@
 package Entity
 
-sealed trait Operation {}
+import io.circe.generic.JsonCodec
 
-case class Insert(position: Int, content: String, version: Int) extends Operation
-case class Delete(position: Int, amount: Int, version: Int) extends Operation
+
+sealed trait Operation
+
+object Operation{
+
+  @JsonCodec
+  final case class Insert(position: Int, content: String, version: Int) extends Operation
+  @JsonCodec
+  case class Delete(position: Int, amount: Int, version: Int) extends Operation
+}

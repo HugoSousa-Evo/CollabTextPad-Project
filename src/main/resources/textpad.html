@@ -26,11 +26,13 @@
     </style>
 </head>
 <body xmlns="http://www.w3.org/1999/xhtml">
-<textarea id="textbox" spellcheck="false" content=""></textarea>
+<textarea id="textbox" spellcheck="false"></textarea>
 <script>
 
     const socket = new WebSocket("ws://localhost:9002/editFile/ws");
     const textbox = document.getElementById("textbox");
+
+    const operationMsg = '{"position":0,"content":"","version":0}'
 
     textbox.onkeydown = function (event) {
         if (event.key === "Tab") {
@@ -43,28 +45,36 @@
 
     textbox.oninput = function (event) {
 
-        console.log(event.target.selectionStart)
-        console.log(event.target.selectionEnd)
-
         if(event.data != null) {
-            p = "" + event.target.selectionStart - event.data.length
-            socket.send("Data: " + event.data + " | Position: " + p);
-        }
 
+            
+            let jMsg = JSON.parse(operationMsg)
+            jMsg.version = 1
+            jMsg.content = event.data
+            jMsg.position = event.target.selectionStart - event.data.length
+
+
+            socket.send(JSON.stringify(jMsg));
+        }
     }
 
     socket.onmessage = function (event) {
         textbox.value += event.data + "\n"
     };
 
-    socket.onopen = function (event) {
-        this.send("");
-    }
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", "http://localhost:9002/file");
+    xhr.send();
+    xhr.responseType = "text";
+    xhr.onload = () => {
+        if (xhr.readyState == xhr.DONE) {
+            textbox.value += xhr.responseText
+        } else {
+            console.log(`Error: ${xhr.status}`);
+        }
+    };
 
-
-    function send() {
-        socket.send("");
-    }
+    
 
     // https://github.com/browserpad/browserpad/blob/main/script.js
 </script>
