@@ -1,9 +1,22 @@
 
 
-- Read From File
-- Write to file
+- Read From File - DONE
+- Write to file - DONE
 
-- Receive Input From Browser
-- Show File in Browser
+- Receive Input From Browser - DONE
+- Show File in Browser - DONE
+
+- Change file with Inputs from browser - DONE
+
+
+Operations yet to implement
+----------------------
+
+- Delete characters
+- Make newlines / tabs / etc. work as well - DONE
+
+----------------------
+
+ - Concurrency
 
 ...

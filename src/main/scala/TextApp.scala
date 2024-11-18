@@ -1,4 +1,4 @@
-import Entity.Operation
+import entity.Operation
 import cats.effect.std.Queue
 import cats.effect.{ExitCode, IO, IOApp, Resource}
 import cats.implicits.toSemigroupKOps
@@ -43,7 +43,6 @@ object TextApp extends IOApp {
 
     def textPadRoute: HttpRoutes[IO] = HttpRoutes.of[IO] {
 
-      // curl "localhost:9002/editFile"
       case req @ GET -> Root / "editFile"=>
 
         StaticFile.fromPath(
@@ -61,7 +60,6 @@ object TextApp extends IOApp {
 
       HttpRoutes.of[IO] {
 
-        // curl "localhost:9002/editFile/ws"
         case GET -> Root / "editFile" / "ws" =>
 
           val wrappedQueue: IO[Queue[IO, WebSocketFrame]] = {
@@ -79,12 +77,13 @@ object TextApp extends IOApp {
               _.foreach{
                 case text: WebSocketFrame.Text =>
 
+                  // test file, change later so host can change which file to host on startup of the application
                   val f = getClass.getClassLoader.getResource("CollabFile.txt").getFile
 
                   val lines = Files.readString(Paths.get(f))
 
                    val op = parse(text.str).getOrElse(Json.Null).as[Operation.Insert] match {
-                     case Left(_) => Operation.Insert(0, "", 0)
+                     case Left(_) => Operation.emptyInsert
                      case Right(value) => value
                    }
 
@@ -95,10 +94,7 @@ object TextApp extends IOApp {
                   }
 
                   IO.println(s) *> IO(Files.write(Paths.get(f), s.getBytes(StandardCharsets.UTF_8)))
-
               }
-
-//              _.foreach(_ => actualQueue.offer(WebSocketFrame.Text(lines)))
             }
 
             wsb.build(send, receive)

@@ -32,7 +32,7 @@
     const socket = new WebSocket("ws://localhost:9002/editFile/ws");
     const textbox = document.getElementById("textbox");
 
-    const operationMsg = '{"position":0,"content":"","version":0}'
+    const operationMsg = '{"position":0,"content":""}'
 
     textbox.onkeydown = function (event) {
         if (event.key === "Tab") {
@@ -40,19 +40,33 @@
             var text = this.value, s = this.selectionStart, e = this.selectionEnd;
             this.value = text.substring(0, s) + '\t' + text.substring(e);
             this.selectionStart = this.selectionEnd = s + 1;
+
+            let jMsg = JSON.parse(operationMsg)
+            jMsg.content = '\t'
+            jMsg.position = s
+
+            socket.send(JSON.stringify(jMsg));
+        }
+        
+        if(event.key === "Enter") {
+
+            let jMsg = JSON.parse(operationMsg)
+            jMsg.content = '\n'
+            jMsg.position = this.selectionStart
+
+            socket.send(JSON.stringify(jMsg));
         }
     };
 
     textbox.oninput = function (event) {
-
+        
+        // if content was inserted
         if(event.data != null) {
 
             
             let jMsg = JSON.parse(operationMsg)
-            jMsg.version = 1
             jMsg.content = event.data
             jMsg.position = event.target.selectionStart - event.data.length
-
 
             socket.send(JSON.stringify(jMsg));
         }
@@ -62,12 +76,15 @@
         textbox.value += event.data + "\n"
     };
 
+    //initial request to load text contents on startup
+
     const xhr = new XMLHttpRequest();
     xhr.open("GET", "http://localhost:9002/file");
     xhr.send();
     xhr.responseType = "text";
     xhr.onload = () => {
         if (xhr.readyState == xhr.DONE) {
+            console.log(xhr.responseText)
             textbox.value += xhr.responseText
         } else {
             console.log(`Error: ${xhr.status}`);
