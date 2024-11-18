@@ -2,7 +2,7 @@ package entity
 
 import io.circe.generic.JsonCodec
 
-
+@JsonCodec
 sealed trait Operation
 
 object Operation{
@@ -12,5 +12,5 @@ object Operation{
   @JsonCodec
   final case class Insert(position: Int, content: String) extends Operation
   @JsonCodec
-  case class Delete(position: Int, amount: Int) extends Operation
+  final case class Delete(position: Int, amount: Int) extends Operation
 }

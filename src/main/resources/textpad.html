@@ -32,27 +32,55 @@
     const socket = new WebSocket("ws://localhost:9002/editFile/ws");
     const textbox = document.getElementById("textbox");
 
-    const operationMsg = '{"position":0,"content":""}'
+    const insertOperationMsg = '{"Insert":{"position":0,"content":""}}'
+    const deleteOperationMsg = '{"Delete":{"position":0,"amount":""}}'
 
     textbox.onkeydown = function (event) {
+        
         if (event.key === "Tab") {
             event.preventDefault();
             var text = this.value, s = this.selectionStart, e = this.selectionEnd;
             this.value = text.substring(0, s) + '\t' + text.substring(e);
             this.selectionStart = this.selectionEnd = s + 1;
 
-            let jMsg = JSON.parse(operationMsg)
-            jMsg.content = '\t'
-            jMsg.position = s
+            let jMsg = JSON.parse(insertOperationMsg)
+            jMsg.Insert.content = '\t'
+            jMsg.Insert.position = s
 
             socket.send(JSON.stringify(jMsg));
         }
         
         if(event.key === "Enter") {
 
-            let jMsg = JSON.parse(operationMsg)
-            jMsg.content = '\n'
-            jMsg.position = this.selectionStart
+            let jMsg = JSON.parse(insertOperationMsg)
+            jMsg.Insert.content = '\n'
+            jMsg.Insert.position = this.selectionStart
+
+            socket.send(JSON.stringify(jMsg));
+        }
+
+        if(event.key === "Backspace" || event.key === "Delete"){
+            event.preventDefault();
+            let text = this.value, s = this.selectionStart, e = this.selectionEnd;
+            let amount = e - s
+
+            let jMsg = JSON.parse(deleteOperationMsg)
+            
+            if(amount == 0) {
+                
+                jMsg.Delete.amount = 1
+                jMsg.Delete.position = Math.max(s - 1, 0)
+
+                this.value = text.substring(0, Math.max(s - 1, 0)) + text.substring(s)
+                this.selectionStart = this.selectionEnd = Math.max(s - 1, 0)
+            } else {
+                
+                jMsg.Delete.amount = amount
+                jMsg.Delete.position = s
+
+                this.value = text.substring(0, s) + text.substring(s + amount)
+                this.selectionStart = this.selectionEnd = s
+            }
 
             socket.send(JSON.stringify(jMsg));
         }
@@ -62,11 +90,10 @@
         
         // if content was inserted
         if(event.data != null) {
-
             
-            let jMsg = JSON.parse(operationMsg)
-            jMsg.content = event.data
-            jMsg.position = event.target.selectionStart - event.data.length
+            let jMsg = JSON.parse(insertOperationMsg)
+            jMsg.Insert.content = event.data
+            jMsg.Insert.position = event.target.selectionStart - event.data.length
 
             socket.send(JSON.stringify(jMsg));
         }

@@ -82,18 +82,29 @@ object TextApp extends IOApp {
 
                   val lines = Files.readString(Paths.get(f))
 
-                   val op = parse(text.str).getOrElse(Json.Null).as[Operation.Insert] match {
-                     case Left(_) => Operation.emptyInsert
-                     case Right(value) => value
-                   }
+                  (parse(text.str).getOrElse(Json.Null).as[Operation] match {
+                    case Left(_) => Operation.emptyInsert
+                    case Right(value) => value
+                  })
+                  match {
+                    case Operation.Insert(position, content) =>
 
-                  val s = op.position match {
-                    case p if p == 0 => op.content + lines
-                    case p if p >= lines.length => lines + op.content
-                    case _ => lines.substring(0, op.position) + op.content + lines.substring(op.position)
+                      val s = position match {
+                        case p if p == 0 => content + lines
+                        case p if p >= lines.length => lines + content
+                        case _ => lines.substring(0, position) + content + lines.substring(position)
+                      }
+                      IO.println(s) *> IO(Files.write(Paths.get(f), s.getBytes(StandardCharsets.UTF_8)))
+
+                    case Operation.Delete(position, amount) =>
+
+                      val s = position match {
+                        case p if p == 0 => lines.substring(p + amount)
+                        case _ => lines.substring(0, position) + lines.substring(position + amount)
+                      }
+                      IO.println(s) *> IO(Files.write(Paths.get(f), s.getBytes(StandardCharsets.UTF_8)))
                   }
 
-                  IO.println(s) *> IO(Files.write(Paths.get(f), s.getBytes(StandardCharsets.UTF_8)))
               }
             }
 
