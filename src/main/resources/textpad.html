@@ -36,7 +36,7 @@
     const deleteOperationMsg = '{"Delete":{"position":0,"amount":""}}'
 
     textbox.onkeydown = function (event) {
-        
+
         if (event.key === "Tab") {
             event.preventDefault();
             var text = this.value, s = this.selectionStart, e = this.selectionEnd;
@@ -88,7 +88,7 @@
 
     textbox.oninput = function (event) {
         
-        // if content was inserted
+        // if content was inserted.  not newlines | tabs | backspace / delete 
         if(event.data != null) {
             
             let jMsg = JSON.parse(insertOperationMsg)

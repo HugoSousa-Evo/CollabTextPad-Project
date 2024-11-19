@@ -5,7 +5,7 @@ import io.circe.generic.JsonCodec
 @JsonCodec
 sealed trait Operation
 
-object Operation{
+object Operation {
 
   def emptyInsert: Insert = Insert(0, "")
 
