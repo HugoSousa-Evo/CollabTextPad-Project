@@ -4,6 +4,7 @@ import cats.effect.Resource
 import cats.effect.kernel.Async
 import cats.effect.std.Queue
 import com.comcast.ip4s.IpLiteralSyntax
+import fs2.concurrent.Topic
 import fs2.io.net.Network
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Server
@@ -16,6 +17,8 @@ object Server {
 
   def server[F[_]: Async: Network](
                          queue: Queue[F, WebSocketFrame],
+                         topic: Topic[F, WebSocketFrame],
+                         maxClients: Int,
                          fileHandler: FileHandler[F]
                          ): Resource[F, Server] = {
     EmberServerBuilder
@@ -25,7 +28,7 @@ object Server {
       .withHttpWebSocketApp(ws => Routes.routesToApp[F](
         Seq(
           Routes.textPadRoute[F](fileHandler.path),
-          Routes.wsOperationRoute[F](ws, queue, fileHandler))
+          Routes.wsOperationRoute[F](ws, queue, topic, maxClients, fileHandler))
       ))
       .build
   }

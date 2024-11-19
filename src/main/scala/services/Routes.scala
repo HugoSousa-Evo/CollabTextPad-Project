@@ -3,14 +3,12 @@ package services
 import cats.effect.kernel.Async
 import cats.effect.std.Queue
 import cats.implicits._
-
 import entity.Operation
-
+import fs2.concurrent.Topic
 import fs2.{Pipe, Stream}
-
 import io.circe.Json
 import io.circe.parser.parse
-
+import io.circe.syntax.EncoderOps
 import org.http4s.{HttpApp, HttpRoutes, StaticFile}
 import org.http4s.dsl.io._
 import org.http4s.server.middleware.ErrorHandling
@@ -38,6 +36,8 @@ object Routes {
   def wsOperationRoute[F[_]: Async](
                                      wsb: WebSocketBuilder2[F],
                                      queue: Queue[F, WebSocketFrame],
+                                     topic: Topic[F, WebSocketFrame],
+                                     maxClients: Int,
                                      handler: FileHandler[F]
                                    ): HttpRoutes[F] =
 
@@ -46,7 +46,7 @@ object Routes {
       case GET -> Root / "editFile" / "ws" =>
 
           val send: Stream[F, WebSocketFrame] = {
-            Stream.fromQueueUnterminated(queue)
+            topic.subscribe(maxQueued = maxClients)
           }
 
           val receive: Pipe[F, WebSocketFrame, Unit] = {
@@ -55,14 +55,17 @@ object Routes {
 
               case text: WebSocketFrame.Text =>
 
-                (parse(text.str).getOrElse(Json.Null).as[Operation] match {
+                (
+                  parse(text.str).getOrElse(Json.Null).as[Operation] match {
                   case Left(_) => Operation.emptyInsert
                   case Right(value) => value
                 })
                 match {
-                  case Operation.Insert(position, content) => handler.fileInsert(position, content)
+                  case ins: Operation.Insert => handler.fileInsert(ins.position, ins.content) *>
+                    queue.offer(WebSocketFrame.Text(ins.asJson.deepMerge(Map("type" -> "insert").asJson).toString))
 
-                  case Operation.Delete(position, amount) => handler.fileDelete(position, amount)
+                  case del: Operation.Delete => handler.fileDelete(del.position, del.amount) *>
+                    queue.offer(WebSocketFrame.Text(del.asJson.deepMerge(Map("type" -> "delete").asJson).toString))
                 }
             }
           }

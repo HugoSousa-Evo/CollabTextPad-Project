@@ -32,8 +32,10 @@
     const socket = new WebSocket("ws://localhost:9002/editFile/ws");
     const textbox = document.getElementById("textbox");
 
-    const insertOperationMsg = '{"Insert":{"position":0,"content":""}}'
-    const deleteOperationMsg = '{"Delete":{"position":0,"amount":""}}'
+    const identifier = Math.floor(Math.random() * 100);
+
+    const insertOperationMsg = `{"Insert":{"position":0,"content":"","sentBy":${identifier}}}`
+    const deleteOperationMsg = `{"Delete":{"position":0,"amount":"","sentBy":${identifier}}}`
 
     textbox.onkeydown = function (event) {
 
@@ -100,8 +102,44 @@
     }
 
     socket.onmessage = function (event) {
-        textbox.value += event.data + "\n"
+
+        let jMsg = JSON.parse(event.data)
+        if(jMsg.sentBy != identifier){
+            if(jMsg.type == "insert"){
+                insert(jMsg.position, jMsg.content)
+            }
+            if(jMsg.type == "delete"){
+                del(jMsg.position, jMsg.amount)
+            }
+            console.log(event.data)
+        }
     };
+
+    function insert(position, content) {
+
+        let txt = textbox.value
+
+        if(position == 0) {
+            textbox.value = content + txt
+        }
+        if(position >= txt.length){
+            textbox.value += content
+        }
+        else{
+            textbox.value = txt.substring(0, position) + content + txt.substring(position)
+        }
+    }
+
+    function del(position, amount) {
+        let txt = textbox.value
+
+        if(position == 0) {
+            textbox.value = txt.substring(amount)
+        }
+        else{
+            textbox.value = txt.substring(0, position) + txt.substring(position + amount)
+        }
+    }
 
     //initial request to load text contents on startup
 
