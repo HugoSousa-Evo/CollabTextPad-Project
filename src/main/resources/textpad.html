@@ -32,7 +32,7 @@
     const socket = new WebSocket("ws://localhost:9002/editFile/ws");
     const textbox = document.getElementById("textbox");
 
-    const identifier = Math.floor(Math.random() * 100);
+    const identifier = Math.floor(Math.random() * 100000);
 
     const insertOperationMsg = `{"Insert":{"position":0,"content":"","sentBy":${identifier}}}`
     const deleteOperationMsg = `{"Delete":{"position":0,"amount":"","sentBy":${identifier}}}`

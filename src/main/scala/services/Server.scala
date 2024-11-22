@@ -15,11 +15,11 @@ object Server {
   private val host = ipv4"127.0.0.1"
   private val port = port"9002"
 
-  def server[F[_]: Async: Network](
-                         queue: Queue[F, WebSocketFrame],
-                         topic: Topic[F, WebSocketFrame],
-                         maxClients: Int,
-                         fileHandler: FileHandler[F]
+  def server[F[+_]: Async: Network](
+                                     queue: Queue[F, WebSocketFrame],
+                                     topic: Topic[F, WebSocketFrame],
+                                     maxClients: Int,
+                                     documentHandler: DocumentHandler[F]
                          ): Resource[F, Server] = {
     EmberServerBuilder
       .default[F]
@@ -27,8 +27,8 @@ object Server {
       .withPort(port)
       .withHttpWebSocketApp(ws => Routes.routesToApp[F](
         Seq(
-          Routes.textPadRoute[F](fileHandler.path),
-          Routes.wsOperationRoute[F](ws, queue, topic, maxClients, fileHandler))
+          Routes.textPadRoute[F](documentHandler.docPath),
+          Routes.wsOperationRoute[F](ws, queue, topic, maxClients, documentHandler))
       ))
       .build
   }
