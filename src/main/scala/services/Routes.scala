@@ -40,14 +40,6 @@ object Routes {
     }
   }
 
-  private def parseFrameToOperation[F[_]: Async]: Pipe[F, WebSocketFrame, Operation] = _.collect {
-    case text: WebSocketFrame.Text =>
-      parse(text.str).getOrElse(Json.Null).as[Operation] match {
-        case Left(_) => Operation.emptyInsert
-        case Right(value) => value
-    }
-  }
-
   def wsOperationRoute[F[+_]: Async](wsb: WebSocketBuilder2[F], queue: Queue[F, WebSocketFrame],
                                      topic: Topic[F, WebSocketFrame], maxClients: Int, handler: DocumentHandler[F]
                                    ): HttpRoutes[F] = {
@@ -63,20 +55,15 @@ object Routes {
         }
 
         val receive: Pipe[F, WebSocketFrame, Unit] = { stream =>
-
           stream.through(parseFrameToOperation[F]).foreach {
 
             case ins: Operation.Insert =>
               handler.insertAt(ins.position, ins.content) *>
-                queue.offer(
-                  WebSocketFrame.Text(ins.asJson.deepMerge(Map("type" -> "insert").asJson
-                  ).toString))
+                queue.offer(ins.operationToTextFrame)
 
             case del: Operation.Delete =>
               handler.deleteAt(del.position, del.amount) *>
-                queue.offer(
-                  WebSocketFrame.Text(del.asJson.deepMerge(Map("type" -> "delete").asJson
-                  ).toString))
+                queue.offer(del.operationToTextFrame)
           }
         }
 
@@ -87,4 +74,12 @@ object Routes {
   def routesToApp[F[_]: Async](routeSeq: Seq[HttpRoutes[F]]): HttpApp[F] = ErrorHandling {
     routeSeq.reduce(_ <+> _)
   }.orNotFound
+
+  private def parseFrameToOperation[F[_]: Async]: Pipe[F, WebSocketFrame, Operation] = _.collect {
+    case text: WebSocketFrame.Text =>
+      parse(text.str).getOrElse(Json.Null).as[Operation] match {
+        case Left(_) => Operation.emptyInsert
+        case Right(value) => value
+      }
+  }
 }

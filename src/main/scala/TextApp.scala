@@ -26,16 +26,16 @@ object TextApp extends IOApp {
       documentRef <- Ref.of[IO, Document](Document(fPath, fileContents, 1))
 
       handler <- DocumentHandler.applyWithWrapper[IO](documentRef)
-      queue <- Queue.unbounded[IO, WebSocketFrame]
+      messageQueue <- Queue.unbounded[IO, WebSocketFrame]
       topic <- Topic[IO, WebSocketFrame]
 
       _ <- Stream(
         // run server
-        Stream.eval(Server.server[IO](queue, topic, maxClients, handler).useForever.void),
+        Stream.eval(Server.server[IO](messageQueue, topic, maxClients, handler).useForever.void),
         // write to actual file every x seconds
         Stream.awakeEvery[IO](autoSaveRate.seconds).evalMap(_ => handler.writeToFile),
         // pass data from queue to topic
-        Stream.fromQueueUnterminated(queue).through(topic.publish),
+        Stream.fromQueueUnterminated(messageQueue).through(topic.publish),
         // Websocket "heartbeat" so socket on client doesn't close after some time without new messages
         Stream.awakeEvery[IO](30.seconds).map(_ => WebSocketFrame.Ping()).through(topic.publish)
       ).parJoinUnbounded.compile.drain
