@@ -51,6 +51,7 @@ object Operation {
     override def update(op: Operation): Operation = op match {
 
       case other: Insert =>
+
         if(other.position <= position){
           Operation.Delete(position + other.content.length, amount, sentBy)
         }
@@ -71,4 +72,3 @@ object Operation {
     }
   }
 }
-

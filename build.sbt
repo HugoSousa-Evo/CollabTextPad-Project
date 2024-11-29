@@ -93,5 +93,8 @@ lazy val root = project
       "dev.zio"                  %% "zio-streams"                   % "2.0.12",
       "dev.zio"                  %% "zio-interop-cats"              % "23.0.0.4",
       "io.github.timwspence"     %% "cats-stm"                      % "0.11.0",
+      "com.github.pureconfig"    %% "pureconfig"                    % "0.17.8",
+      "com.github.pureconfig"    %% "pureconfig-cats-effect"        % "0.17.8",
+      "dev.profunktor"           %% "http4s-jwt-auth"               % "2.0.1"
     ),
   )

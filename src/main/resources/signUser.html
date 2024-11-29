@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User SignIn</title>
+</head>
+<body>
+    <form id="form" action="http://localhost:9002/auth/signIn/" method="post" onsubmit="OnSubmitForm()">
+
+        <div class="container">
+            <label><b>Username</b></label>
+            <input id="user" type="text" placeholder="Enter Username" name="uname" required>
+
+            <button type="submit">Login</button>
+        </div>
+    </form>
+    <script type="text/javascript">
+        function OnSubmitForm()
+        {
+          let username = document.getElementById("user").value
+          document.getElementById("form").action += username
+
+          return true;
+        }
+    </script>
+</body>
+</html>
