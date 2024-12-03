@@ -2,13 +2,12 @@ package services
 
 import auth.AuthService
 import cats.effect.implicits.effectResourceOps
-import cats.effect.kernel.{Async, Ref}
+import cats.effect.kernel.Async
 import cats.effect.std.Queue
 import cats.implicits._
-import entity.{Operation, Registry, User}
+import entity.Operation
 import fs2.concurrent.Topic
 import fs2.{Pipe, Stream}
-import fs2.io.file.Path
 import io.circe.Json
 import io.circe.parser.parse
 import org.http4s.dsl.Http4sDsl
@@ -17,6 +16,8 @@ import org.http4s.server.middleware.ErrorHandling
 import org.http4s.server.websocket.WebSocketBuilder2
 import org.http4s.websocket.WebSocketFrame
 import entity.document.{DocumentConfig, DocumentHandler}
+import io.circe.syntax.EncoderOps
+import org.http4s.circe._
 import org.http4s.server.AuthMiddleware
 import pureconfig.ConfigSource
 import pureconfig.module.catseffect.syntax.CatsEffectConfigSource
@@ -25,7 +26,8 @@ import pureconfig.generic.auto._
 sealed trait Route
 object Route {
 
-  final case class OpenRoutes[F[_]: Async](service: AuthService[F]) extends Route {
+  final case class OpenRoutes[F[_]: Async]
+  (service: AuthService[F]) extends Route {
 
     def userAuthRoute() : HttpRoutes[F] = {
 
@@ -37,10 +39,10 @@ object Route {
           for {
             signInResult <- service.signIn(username)
             response <- signInResult match {
-              case Left(e) => println("userExists")
+              case Left(e) =>
                 BadRequest(e.toString)
-              case Right(authToken) => println("userAdded")
-                Ok(authToken)
+              case Right(authToken) =>
+                Ok(authToken.asJson)
             }
           } yield response
 
@@ -62,9 +64,9 @@ object Route {
 
       middleware {
 
-        AuthedRoutes.of[String, F] {
+        AuthedRoutes.of {
 
-          case authReq @ GET -> Root / "editFile" as username =>
+          case authReq @ GET -> Root / _ / "editFile" as username =>
 
             val path = this.getClass.getClassLoader.getResource("textpad.html").getFile
 
@@ -133,14 +135,33 @@ object Route {
       middleware {
         AuthedRoutes.of {
 
-          case req @ GET -> Root / "insertFile" / filename as username =>
-            ???
+          case authReq @ GET -> Root / "userPage" as username =>
+            val path = this.getClass.getClassLoader.getResource("userPage.html").getFile
+            StaticFile.fromPath(fs2.io.file.Path(path), Some(authReq.req)).getOrElseF(NotFound())
 
-          case req @ GET -> Root / "deleteFile" / filename as username =>
-            ???
+          case POST -> Root / _ / "createFile" / filename as username =>
+            for {
+              result <- service.userCreateFile(username, filename)
+              response <- result match {
+                case Left(e) => BadRequest(e.toString)
+                case Right(_) => Ok("file created")
+              }
+            } yield response
 
-          case req @ GET -> Root / "listFiles" as username =>
-            ???
+          case POST -> Root / _ / "deleteFile" / filename as username =>
+            for {
+              result <- service.userDeleteFile(username, filename)
+              response <- result match {
+                case Left(e) => BadRequest(e.toString)
+                case Right(_) => Ok("file deleted")
+              }
+            } yield response
+
+          case GET -> Root / _ / "listFiles" as username =>
+            for {
+              files <- service.listFileNamesFromUser(username)
+              response <- Ok(files.asJson)
+            } yield response
         }
       }
 

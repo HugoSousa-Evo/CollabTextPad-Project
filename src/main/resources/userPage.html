@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Page</title>
+</head>
+<body>
+    <h1>User Page</h1>
+
+    <div class="container">
+        <label><b>Create Files</b></label>
+        <input id="create" type="text" placeholder="Enter Filename" name="create" required>
+
+        <button type="submit" onclick="createFile()">Create</button>
+    </div>
+
+    <div class="container">
+        <label><b>Delete Files</b></label>
+        <input id="delete" type="text" placeholder="Enter Filename" name="delete" required>
+
+        <button type="submit" onclick="deleteFile()">Delete</button>
+    </div>
+
+    <div class="container">
+        <label><b>List Files</b></label>
+
+        <button type="submit" onclick="listFiles()">List</button>
+    </div>
+
+    <script>
+        let token = window.localStorage.getItem("token")
+
+        function createFile() {
+            let filename = document.getElementById("create").value
+
+            fetch("http://localhost:9002/user/createFile/" + filename, {
+                method: 'POST',
+                headers:{
+                    "Authorization":"Bearer " + token
+                }
+            }).then(response => response.text()).then(data => console.log(data))
+        }
+
+        function deleteFile() {
+            let filename = document.getElementById("create").value
+
+            fetch("http://localhost:9002/user/deleteFile/" + filename, {
+                method: 'POST',
+                headers:{
+                    "Authorization":"Bearer " + token
+                }
+            }).then(response => response.text()).then(data => console.log(data))
+        }
+
+        function listFiles() {
+            let filename = document.getElementById("create").value
+
+            fetch("http://localhost:9002/user/listFiles" + filename, {
+                method: 'GET',
+                headers:{
+                    "Authorization":"Bearer " + token
+                }
+            }).then(response => response.text()).then(data => console.log(data))
+        }
+    </script>
+</body>
+</html>

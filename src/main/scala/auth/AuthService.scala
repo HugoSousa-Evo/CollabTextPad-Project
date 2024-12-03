@@ -4,9 +4,11 @@ import auth.AuthConfig.SecretConfigValue
 import cats.implicits._
 import cats.effect.Ref
 import cats.effect.kernel.Sync
+import entity.document.FileError
 import entity.{Registry, User}
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim}
 
+import java.nio.file.{Files, Path, Paths}
 import scala.concurrent.duration.FiniteDuration
 
 trait AuthService[F[_]] {
@@ -15,7 +17,11 @@ trait AuthService[F[_]] {
 
   def getFilePath(username: String, filename: String): F[Either[AuthError, String]]
 
-  // def performOperation(username: String): F[Either[AuthError, ???]]
+  def listFileNamesFromUser(username: String): F[Set[String]]
+
+  def userCreateFile(username: String, filename: String): F[Either[FileError, Path]]
+
+  def userDeleteFile(username: String, filename: String): F[Either[AuthError, Boolean]]
 }
 
 object AuthService {
@@ -34,7 +40,7 @@ object AuthService {
             registry.getUser(username) match {
               case Some(_) => (registry, true)
               case None =>
-                val newReg = registry.insertUser(User(username, Set.empty, Set.empty))
+                val newReg = registry.insertUser(User(username, Set.empty))
                 newReg.update()
                 (newReg, false)
             }
@@ -74,7 +80,39 @@ object AuthService {
            }
        }
 
+       def listFileNamesFromUser(username: String): F[Set[String]] =
+         for {
+           reg <- userRegistry.get
+         } yield reg.getAllUserFiles(username)
+
+       def userCreateFile(username: String, filename: String): F[Either[FileError, Path]] =
+         for {
+           registry <- userRegistry.get
+         } yield registry.getFilePathFromUser(username, filename) match {
+           case Some(_) => FileError.FileAlreadyExistsForUser.asLeft
+           case None => {
+
+             val folderPath = Paths.get(s"./Documents/$username")
+
+             if(!Files.exists(folderPath)){
+               Files.createDirectory(folderPath)
+             }
+
+             Files.createFile(folderPath.resolve(filename))
+           }.asRight
+         }
+
+       def userDeleteFile(username: String, filename: String): F[Either[AuthError, Boolean]] =
+         for {
+           registry <- userRegistry.get
+         } yield {
+           if(registry.isOwnerOf(username, filename)){
+               Files.deleteIfExists(Paths.get(s"./Documents/$username/$filename")).asRight
+           }
+           else{
+             AuthError.NoPermissionForOperation.asLeft
+           }
+         }
+
      }.pure[F]
-
-
 }

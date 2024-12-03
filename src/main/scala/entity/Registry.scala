@@ -6,7 +6,9 @@ import io.circe.parser.parse
 import io.circe.Json
 import io.circe.syntax.EncoderOps
 
-import java.nio.file.{Files, Path}
+import scala.jdk.CollectionConverters._
+
+import java.nio.file.{Files, Path, Paths}
 
 @JsonCodec
 case class Registry private (users: Set[User]) {
@@ -37,7 +39,13 @@ case class Registry private (users: Set[User]) {
       None
 
   def getUserOwnedFiles(name: String): Set[String] = users.find(_.name == name) match {
-    case Some(user) => user.ownerOf
+    case Some(user) =>
+      val folderPath = Paths.get(s"./Documents/${user.name}")
+
+      if (Files.exists(folderPath)){
+        Files.list(folderPath).iterator().asScala.map(_.toFile.getName).toSet
+      } else { Set.empty }
+
     case None => Set.empty
   }
 
@@ -47,10 +55,11 @@ case class Registry private (users: Set[User]) {
   }
 
   def getAllUserFiles(name: String): Set[String] = users.find(_.name == name) match {
-    case Some(user) => user.ownerOf ++ user.memberOf
+    case Some(user) => getUserOwnedFiles(name) ++ user.memberOf
     case None => Set.empty
   }
 
+  // change to F[Unit] eventually
   def update(): Unit = Files.write(path, identity(this).asJson.toString().getBytes)
 }
 

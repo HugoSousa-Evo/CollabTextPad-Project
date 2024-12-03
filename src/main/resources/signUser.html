@@ -5,22 +5,36 @@
     <title>User SignIn</title>
 </head>
 <body>
-    <form id="form" action="http://localhost:9002/auth/signIn/" method="post" onsubmit="OnSubmitForm()">
+    <div class="container">
+        <label><b>Username</b></label>
+        <input id="user" type="text" placeholder="Enter Username" name="uname" required>
 
-        <div class="container">
-            <label><b>Username</b></label>
-            <input id="user" type="text" placeholder="Enter Username" name="uname" required>
-
-            <button type="submit">Login</button>
-        </div>
-    </form>
+        <button type="submit" onclick="OnSubmitUser()">Login</button>
+    </div>
     <script type="text/javascript">
-        function OnSubmitForm()
+        function OnSubmitUser()
         {
           let username = document.getElementById("user").value
-          document.getElementById("form").action += username
 
-          return true;
+          fetch("http://localhost:9002/auth/signIn/" + username, {method: 'POST'})
+          .then(response => {
+            if(response.ok) {
+                response.json().then(data => {
+                    window.localStorage.setItem("token", data); 
+                    RedirectToUserPage(data)
+                })
+            }
+          })
+        }
+
+        function RedirectToUserPage(token) 
+        {
+            fetch("http://localhost:9002/userPage", {
+                method: 'GET',
+                headers:{
+                    "Authorization":"Bearer " + token
+                }
+            }).then(response => window.location.href = "http://localhost:9002/userPage")
         }
     </script>
 </body>
