@@ -63,6 +63,7 @@ object Route {
           StaticFile.fromPath(fs2.io.file.Path(path), Some(req)).getOrElseF(NotFound())
       }
     }
+
   }
 
   final case class AuthRoutes[F[_]: Async]
@@ -98,7 +99,10 @@ object Route {
       }
     }
 
-    def wsOperationRoute(wsb: WebSocketBuilder2[F]): HttpRoutes[F] = {
+    def wsOperationRoute(wsb: WebSocketBuilder2[F],
+                         messageQueue: Queue[F, Operation],
+                         topic: Topic[F, WebSocketFrame],
+                         handler: DocumentHandler[F]): HttpRoutes[F] = {
 
       val dsl = Http4sDsl[F]
       import dsl._
@@ -109,33 +113,30 @@ object Route {
 
           case GET -> Root / filepath / "editFile" / "ws" as username =>
 
-            def send(topic: Topic[F, WebSocketFrame]): Stream[F, WebSocketFrame] = {
+            val path = s"./Documents/$username/$filepath"
+
+            def send(): Stream[F, WebSocketFrame] = {
               topic.subscribe(maxQueued = 100)
             }
 
-            def receive(messageQueue: Queue[F, Operation], handler: DocumentHandler[F]):
+            def receive():
             Pipe[F, WebSocketFrame, Unit] = { stream =>
 
               stream.through(parseFrameToOperation[F]).foreach {
 
                 case ins @ Operation.Insert(position, content, _) =>
-                  handler.insertAt(position, content) *> messageQueue.offer(ins)
+                  handler.insertAt(path, position, content) *> messageQueue.offer(ins)
 
                 case del @ Operation.Delete(position, amount, _) =>
-                  handler.deleteAt(position, amount) *> messageQueue.offer(del)
+                  handler.deleteAt(path, position, amount) *> messageQueue.offer(del)
               }
             }
 
             for {
 
-              config <- ConfigSource.default.at("document-config").loadF[F, DocumentConfig]
-              response <- DocumentHandler.make(username, filepath, config.saveRate).use { handler =>
-                for {
-                  queue <- Queue.unbounded[F, Operation]
-                  topic <-  Topic[F, WebSocketFrame]
-                  ws <- wsb.build(send(topic), receive(queue, handler))
-                } yield ws
-              }
+              _ <- handler.open(path)
+
+              response <- wsb.withOnClose(handler.unsubscribe(path)).build(send(), receive())
 
             } yield response
         }
@@ -183,7 +184,7 @@ object Route {
     }
   }
 
-  def routesToApp[F[_]: Async](routeSeq: Seq[HttpRoutes[F]]): HttpApp[F] = ErrorHandling {
+  def routesToApp[F[_]: Async](routeSeq: Seq[HttpRoutes[F]]): HttpApp[F] = {
     routeSeq.reduce(_ <+> _)
   }.orNotFound
 
