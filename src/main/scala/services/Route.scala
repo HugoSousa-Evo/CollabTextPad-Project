@@ -46,8 +46,19 @@ object Route {
             }
           } yield response
 
+        case POST -> Root / "auth" / "logIn" / username =>
+          for {
+            signInResult <- service.logIn(username)
+            response <- signInResult match {
+              case Left(e) =>
+                BadRequest(e.toString)
+              case Right(authToken) =>
+                Ok(authToken.asJson)
+            }
+          } yield response
+
         case req @ GET -> Root / "signIn" =>
-          val path = this.getClass.getClassLoader.getResource("signUser.html").getFile
+          val path = "./src/main/resources/signUser.html"
 
           StaticFile.fromPath(fs2.io.file.Path(path), Some(req)).getOrElseF(NotFound())
       }
@@ -68,7 +79,7 @@ object Route {
 
           case authReq @ GET -> Root / _ / "editFile" as username =>
 
-            val path = this.getClass.getClassLoader.getResource("textpad.html").getFile
+            val path = "./src/main/resources/textpad.html"
 
             StaticFile.fromPath(fs2.io.file.Path(path), Some(authReq.req)).getOrElseF(NotFound())
 
@@ -102,7 +113,8 @@ object Route {
               topic.subscribe(maxQueued = 100)
             }
 
-            def receive(messageQueue: Queue[F, Operation], handler: DocumentHandler[F]): Pipe[F, WebSocketFrame, Unit] = { stream =>
+            def receive(messageQueue: Queue[F, Operation], handler: DocumentHandler[F]):
+            Pipe[F, WebSocketFrame, Unit] = { stream =>
 
               stream.through(parseFrameToOperation[F]).foreach {
 
@@ -114,15 +126,18 @@ object Route {
               }
             }
 
-            (for {
+            for {
 
-              config <- ConfigSource.default.at("document-config").loadF[F, DocumentConfig].toResource
-              handler <- DocumentHandler.make(filepath, config.saveRate)
+              config <- ConfigSource.default.at("document-config").loadF[F, DocumentConfig]
+              response <- DocumentHandler.make(username, filepath, config.saveRate).use { handler =>
+                for {
+                  queue <- Queue.unbounded[F, Operation]
+                  topic <-  Topic[F, WebSocketFrame]
+                  ws <- wsb.build(send(topic), receive(queue, handler))
+                } yield ws
+              }
 
-              queue <- Queue.unbounded[F, Operation].toResource
-              topic <-  Topic[F, WebSocketFrame].toResource
-
-            } yield wsb.build(send(topic), receive(queue, handler))).use(ws => ws)
+            } yield response
         }
       }
     }
@@ -136,7 +151,7 @@ object Route {
         AuthedRoutes.of {
 
           case authReq @ GET -> Root / "userPage" as username =>
-            val path = this.getClass.getClassLoader.getResource("userPage.html").getFile
+            val path = "./src/main/resources/userPage.html"
             StaticFile.fromPath(fs2.io.file.Path(path), Some(authReq.req)).getOrElseF(NotFound())
 
           case POST -> Root / _ / "createFile" / filename as username =>

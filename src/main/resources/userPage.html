@@ -27,6 +27,12 @@
         <button type="submit" onclick="listFiles()">List</button>
     </div>
 
+    <div class="container">
+        <label><b>Edit File</b></label>
+        <input id="edit" type="text" placeholder="Enter Filename" name="edit">
+        <button type="submit" onclick="editFile()">Edit</button>
+    </div>
+
     <script>
         let token = window.localStorage.getItem("token")
 
@@ -51,7 +57,8 @@
                 }
             }).then(response => response.text()).then(data => console.log(data))
         }
-
+        
+        // TODO
         function listFiles() {
             let filename = document.getElementById("create").value
 
@@ -61,6 +68,19 @@
                     "Authorization":"Bearer " + token
                 }
             }).then(response => response.text()).then(data => console.log(data))
+        }
+
+        function editFile() {
+
+            let filename = document.getElementById("edit").value
+
+            fetch("http://localhost:9002/"+ filename + "/editFile", {
+                method: 'GET',
+                headers:{
+                    "Authorization":"Bearer " + token
+                }
+            }).then(response =>  window.location.href = "http://localhost:9002/"+ filename +"/editFile")
+
         }
     </script>
 </body>

@@ -29,8 +29,27 @@
 <textarea id="textbox" spellcheck="false"></textarea>
 <script>
 
-    const socket = new WebSocket("ws://localhost:9002/editFile/ws");
+    let filename = window.location.pathname.split("/")[1]
+    let token = window.localStorage.getItem("token")
     const textbox = document.getElementById("textbox");
+
+    //initial request to load text contents on startup
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", "http://localhost:9002/"+ filename + "/file");
+    xhr.setRequestHeader('Authorization',"Bearer " + token)
+    xhr.send();
+    xhr.responseType = "text";
+    xhr.onload = () => {
+        if (xhr.readyState == xhr.DONE) {
+            textbox.value += xhr.responseText
+    
+        } else {
+            console.log(`Error: ${xhr.status}`);
+        }
+    };
+
+    const socket = new WebSocket("ws://localhost:9002/"+ filename +"/editFile/ws");
 
     const identifier = Math.floor(Math.random() * 100000);
 
@@ -140,22 +159,6 @@
             textbox.value = txt.substring(0, position) + txt.substring(position + amount)
         }
     }
-
-    //initial request to load text contents on startup
-
-    const xhr = new XMLHttpRequest();
-    xhr.open("GET", "http://localhost:9002/file");
-    xhr.send();
-    xhr.responseType = "text";
-    xhr.onload = () => {
-        if (xhr.readyState == xhr.DONE) {
-            console.log(xhr.responseText)
-            textbox.value += xhr.responseText
-        } else {
-            console.log(`Error: ${xhr.status}`);
-        }
-    };
-
     
 </script>
 </body>

@@ -9,14 +9,30 @@
         <label><b>Username</b></label>
         <input id="user" type="text" placeholder="Enter Username" name="uname" required>
 
-        <button type="submit" onclick="OnSubmitUser()">Login</button>
+        <button type="submit" onclick="OnRegisterUser()">SignIn</button>
+        <button type="submit" onclick="OnLoginUser()">Login</button>
     </div>
     <script type="text/javascript">
-        function OnSubmitUser()
+        function OnRegisterUser()
         {
           let username = document.getElementById("user").value
 
           fetch("http://localhost:9002/auth/signIn/" + username, {method: 'POST'})
+          .then(response => {
+            if(response.ok) {
+                response.json().then(data => {
+                    window.localStorage.setItem("token", data); 
+                    RedirectToUserPage(data)
+                })
+            }
+          })
+        }
+
+        function OnLoginUser()
+        {
+          let username = document.getElementById("user").value
+
+          fetch("http://localhost:9002/auth/logIn/" + username, {method: 'POST'})
           .then(response => {
             if(response.ok) {
                 response.json().then(data => {

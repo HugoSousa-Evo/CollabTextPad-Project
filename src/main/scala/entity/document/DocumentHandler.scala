@@ -35,9 +35,9 @@ class DocumentHandler[F[_]: Async] private (documentRef: Ref[F,Document]) {
 
 object DocumentHandler {
 
-  def make[F[_]: fs2.io.file.Files: Async](path: String, autoSaveRate: FiniteDuration): Resource[F, DocumentHandler[F]] = {
+  def make[F[_]: fs2.io.file.Files: Async](user: String, filename: String, autoSaveRate: FiniteDuration): Resource[F, DocumentHandler[F]] = {
 
-    val fs2Path = fs2.io.file.Path(path)
+    val fs2Path = fs2.io.file.Path(s"./Documents/$user/$filename")
 
     for {
       // read file contents
@@ -47,7 +47,7 @@ object DocumentHandler {
         .compile.string.toResource
 
       // create reference to the current document
-      documentRef <- Ref.of[F, Document](Document(path, content, version = 1)).toResource
+      documentRef <- Ref.of[F, Document](Document(filename, content, version = 1)).toResource
 
       // auto save file every some seconds
       _ <- fs2.Stream.awakeEvery(autoSaveRate).evalMap { _ =>
