@@ -13,13 +13,8 @@ object TextApp extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
     
     for {
-      messageQueue <- Queue.unbounded[IO, Operation]
-      topic <- Topic[IO, WebSocketFrame]
-       _ <- Stream(
-         Stream.eval(Server.server[IO](messageQueue, topic).useForever.void),
-         Stream.fromQueueUnterminated(messageQueue).map(_.operationToTextFrame).through(topic.publish),
-         Stream.awakeEvery[IO](30.seconds).map(_ => WebSocketFrame.Ping()).through(topic.publish)
-       ).parJoinUnbounded.compile.drain
+
+      _ <-   Server.server[IO]().useForever.void
     } yield ExitCode.Success
   }
   

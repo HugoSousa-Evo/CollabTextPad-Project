@@ -2,7 +2,7 @@ package services
 
 import auth.AuthService
 import cats.effect.implicits.effectResourceOps
-import cats.effect.kernel.Async
+import cats.effect.kernel.{Async, Resource}
 import cats.effect.std.Queue
 import cats.implicits._
 import entity.Operation
@@ -22,6 +22,8 @@ import org.http4s.server.AuthMiddleware
 import pureconfig.ConfigSource
 import pureconfig.module.catseffect.syntax.CatsEffectConfigSource
 import pureconfig.generic.auto._
+
+import scala.concurrent.duration.DurationInt
 
 sealed trait Route
 object Route {
@@ -80,8 +82,6 @@ object Route {
 
           case authReq @ GET -> Root / _ / "editFile" :? ownerParams as _ =>
 
-            println(ownerParams)
-
             val path = "./src/main/resources/textpad.html"
 
             StaticFile.fromPath(fs2.io.file.Path(path), Some(authReq.req)).getOrElseF(NotFound())
@@ -89,8 +89,6 @@ object Route {
           case authReq @ GET -> Root / filename / "file" :? ownerParams as username =>
 
             val owner = ownerParams("owner").head
-
-            println(owner)
 
             for {
               filePathResult <- service.getFilePath(username, owner, filename)
@@ -106,8 +104,6 @@ object Route {
     }
 
     def wsOperationRoute(wsb: WebSocketBuilder2[F],
-                         messageQueue: Queue[F, Operation],
-                         topic: Topic[F, WebSocketFrame],
                          handler: DocumentHandler[F]): HttpRoutes[F] = {
 
       val dsl = Http4sDsl[F]
@@ -121,11 +117,11 @@ object Route {
 
             val owner = ownerParams("owner").head
 
-            def send(): Stream[F, WebSocketFrame] = {
+            def send(topic: Topic[F, WebSocketFrame]): Stream[F, WebSocketFrame] = {
               topic.subscribe(maxQueued = 100)
             }
 
-            def receive(path: String):
+            def receive(path: String, messageQueue: Queue[F, Operation]):
             Pipe[F, WebSocketFrame, Unit] = { stream =>
 
               stream.through(parseFrameToOperation[F]).foreach {
@@ -144,11 +140,21 @@ object Route {
 
               r <- filePathResult match {
                 case Left(e) => BadRequest(e.toString)
-                case Right(path) => for {
+                case Right(path) =>
+                  for {
+
+                  messageQueue <- Queue.unbounded[F, Operation]
+                  topic <- Topic[F, WebSocketFrame]
 
                   _ <- handler.open(path)
 
-                  response <- wsb.withOnClose(handler.unsubscribe(path)).build(send(), receive(path))
+                  _ <- Stream(
+                    Stream.fromQueueUnterminated(messageQueue).map(_.operationToTextFrame).through(topic.publish),
+                    Stream.awakeEvery[F](30.seconds).map(_ => WebSocketFrame.Ping()).through(topic.publish)
+                  ).parJoinUnbounded.compile.drain
+
+                  response <- wsb.withOnClose(handler.unsubscribe(path)).build(send(topic), receive(path, messageQueue))
+
                 } yield response
               }
 
@@ -222,3 +228,4 @@ object Route {
       }
   }
 }
+

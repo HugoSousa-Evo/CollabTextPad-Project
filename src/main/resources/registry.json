@@ -10,6 +10,18 @@
       "memberOf" : [
         "aaa/bbb"
       ]
+    },
+    {
+      "name" : "user2",
+      "memberOf" : [
+        "user1/abc"
+      ]
+    },
+    {
+      "name" : "user1",
+      "memberOf" : [
+        "user2/law"
+      ]
     }
   ]
 }

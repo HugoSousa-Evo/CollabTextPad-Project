@@ -22,7 +22,7 @@ object Server {
   private val serverHost = ipv4"127.0.0.1"
   private val serverPort = port"9002"
 
-  def server[F[+_]: Async: Network](queue: Queue[F, Operation], topic: Topic[F, WebSocketFrame]): Resource[F, Unit] = {
+  def server[F[+_]: Async: Network](): Resource[F, Unit] = {
 
     for {
 
@@ -57,7 +57,7 @@ object Server {
           openRoutes.userAuthRoute(),
           authRoutes.textPadRoute(),
           authRoutes.userOperationRoute(),
-          authRoutes.wsOperationRoute(ws, queue, topic, handler)
+          authRoutes.wsOperationRoute(ws, handler)
 
         ))).build
 
