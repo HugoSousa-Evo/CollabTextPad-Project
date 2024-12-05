@@ -117,21 +117,10 @@ object Route {
 
             val owner = ownerParams("owner").head
 
-            def send(topic: Topic[F, WebSocketFrame]): Stream[F, WebSocketFrame] = {
-              topic.subscribe(maxQueued = 100)
-            }
 
-            def receive(path: String, messageQueue: Queue[F, Operation]):
+            def receive(path: String):
             Pipe[F, WebSocketFrame, Unit] = { stream =>
-
-              stream.through(parseFrameToOperation[F]).foreach {
-
-                case ins @ Operation.Insert(position, content, _) =>
-                  handler.insertAt(path, position, content) *> messageQueue.offer(ins)
-
-                case del @ Operation.Delete(position, amount, _) =>
-                  handler.deleteAt(path, position, amount) *> messageQueue.offer(del)
-              }
+              stream.through(parseFrameToOperation[F]).foreach { handler.handle(path, _) }
             }
 
             for {
@@ -143,17 +132,18 @@ object Route {
                 case Right(path) =>
                   for {
 
-                  messageQueue <- Queue.unbounded[F, Operation]
-                  topic <- Topic[F, WebSocketFrame]
+                    updateStream <- handler.open(path)
 
-                  _ <- handler.open(path)
+                    operationStream = updateStream.map(_.operationToTextFrame)
+                    pingStream = Stream.awakeEvery(5.seconds).map(_ => WebSocketFrame.Ping())
+                    sendStream = operationStream.merge(pingStream)
 
-                  _ <- Stream(
-                    Stream.fromQueueUnterminated(messageQueue).map(_.operationToTextFrame).through(topic.publish),
-                    Stream.awakeEvery[F](30.seconds).map(_ => WebSocketFrame.Ping()).through(topic.publish)
-                  ).parJoinUnbounded.compile.drain
+                    //                  _ <- Stream(
+                    //                    Stream.fromQueueUnterminated(messageQueue).map(_.operationToTextFrame).through(topic.publish),
+                    //                    Stream.awakeEvery[F](30.seconds).map(_ => WebSocketFrame.Ping()).through(topic.publish)
+                    //                  ).parJoinUnbounded.compile.drain
 
-                  response <- wsb.withOnClose(handler.unsubscribe(path)).build(send(topic), receive(path, messageQueue))
+                    response <- wsb.withOnClose(handler.unsubscribe(path)).build(sendStream, receive(path))
 
                 } yield response
               }

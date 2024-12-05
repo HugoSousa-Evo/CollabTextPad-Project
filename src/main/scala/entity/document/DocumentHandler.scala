@@ -1,35 +1,34 @@
 package entity.document
 
-import cats.effect.implicits.{effectResourceOps, genSpawnOps}
-import cats.effect.kernel.{Async, Ref, Resource}
-
-
+import cats.effect.implicits.{genSpawnOps, effectResourceOps}
+import cats.effect.kernel.{Ref, Async, Resource}
 import cats.effect.std.AtomicCell
 import cats.effect.{Ref, Temporal, Concurrent, Fiber}
 import cats.syntax.all._
 import cats.effect.syntax.all._
+import entity.Operation
+import fs2.concurrent.Topic
 import fs2.io.file.Files
 
 import scala.concurrent.duration.FiniteDuration
 
 trait DocumentHandler[F[_]] {
 
-  def open(documentPath: String): F[Unit]
+  def open(documentPath: String): F[fs2.Stream[F, Operation]]
 
   def unsubscribe(documentPath: String): F[Unit]
 
-  def insertAt(documentPath: String, position: Int, content: String): F[Unit]
-
-  def deleteAt(documentPath: String, position: Int, amount: Int): F[Unit]
+  def handle(documentPath: String, operation: Operation): F[Unit]
 }
 
 object DocumentHandler {
 
   private type DocumentPath = String
-  private case class DocumentWrapper[F[_]](
+  private case class DocumentSession[F[_]](
                                     document: Document,
                                     subscribers: Int,
-                                    autoSaveFiber: Fiber[F, Throwable, Unit]
+                                    autoSaveFiber: Fiber[F, Throwable, Unit],
+                                    topic: Topic[F, Operation]
                                   )
 
   def of[F[_]: Temporal: Files](
@@ -37,21 +36,20 @@ object DocumentHandler {
                                ): F[DocumentHandler[F]] =
     for {
 
-      documentsRef <- AtomicCell[F].of( Map.empty[DocumentPath, DocumentWrapper[F]] )
+      documentsRef <- AtomicCell[F].of( Map.empty[DocumentPath, DocumentSession[F]] )
 
     } yield new DocumentHandler[F] {
 
-      def open(documentPath: DocumentPath): F[Unit] =
-        documentsRef.evalUpdate { documents =>
+      def open(documentPath: DocumentPath): F[fs2.Stream[F, Operation]] =
+        documentsRef.evalModify { documents =>
           documents.get(documentPath) match {
             case Some(documentWrapper) =>
               val newDocumentWrapper =
                 documentWrapper.copy(
                   subscribers = documentWrapper.subscribers + 1
                 )
-              documents
-                .updated(documentPath, newDocumentWrapper)
-                .pure[F]
+              (documents.updated(documentPath, newDocumentWrapper), documentWrapper.topic.subscribe(100)).pure[F]
+
 
             case None =>
               val fs2Path = fs2.io.file.Path(documentPath)
@@ -64,6 +62,8 @@ object DocumentHandler {
                   .through(fs2.text.utf8.decode)
                   .compile
                   .string
+
+                topic <- Topic[F, Operation]
 
                 // auto save file every some seconds
                 fiber <- fs2.Stream
@@ -88,12 +88,13 @@ object DocumentHandler {
                   .drain
                   .start
 
-                documentWrapper = DocumentWrapper(
+                documentWrapper = DocumentSession(
                   document = Document(documentPath, content, version = 0),
                   subscribers = 1,
-                  autoSaveFiber = fiber
+                  autoSaveFiber = fiber,
+                  topic = topic
                 )
-              } yield documents.updated(documentPath, documentWrapper)
+              } yield (documents.updated(documentPath, documentWrapper), topic.subscribe(100))
           }
         }
 
@@ -118,42 +119,48 @@ object DocumentHandler {
           }
         }
 
-      def insertAt(
+
+      def handle(documentPath: DocumentPath, operation: Operation): F[Unit] = {
+        operation match {
+          case o: Operation.Insert => insertAt(documentPath, o)
+          case o: Operation.Delete => deleteAt(documentPath, o)
+        }
+      }
+
+      private def insertAt(
                     documentPath: DocumentPath,
-                    position: Int,
-                    content: String
+                    operation: Operation.Insert
                   ): F[Unit] =
         documentsRef.evalUpdate { documents =>
           documents.get(documentPath) match {
             case Some(wrapper) =>
               val document = wrapper.document
-              val newContent = position match {
-                case p if p == 0 => content + document.content
-                case p if p >= document.content.length => document.content + content
-                case _ => document.content.substring(0, position) + content + document.content.substring(position)
+              val newContent = operation.position match {
+                case p if p == 0 => operation.content + document.content
+                case p if p >= document.content.length => document.content + operation.content
+                case _ => document.content.substring(0, operation.position) + operation.content + document.content.substring(operation.position)
               }
-
-              documents.updated(documentPath, wrapper.copy(document = document.copy(content = newContent))).pure[F]
+              wrapper.topic.publish1(operation) as
+                documents.updated(documentPath, wrapper.copy(document = document.copy(content = newContent)))
 
             case None => documents.pure[F]
           }
         }
 
-      def deleteAt(
+      private def deleteAt(
                     documentPath: DocumentPath,
-                    position: Int,
-                    amount: Int
+                    operation: Operation.Delete
                   ): F[Unit] =
         documentsRef.evalUpdate { documents =>
           documents.get(documentPath) match {
             case Some(wrapper) =>
               val document = wrapper.document
-              val newContent = position match {
-                case p if p == 0 => document.content.substring(amount)
-                case _ => document.content.substring(0, position) + document.content.substring(position + amount)
+              val newContent = operation.position match {
+                case p if p == 0 => document.content.substring(operation.amount)
+                case _ => document.content.substring(0, operation.position) + document.content.substring(operation.position + operation.amount)
               }
-
-              documents.updated(documentPath, wrapper.copy(document = document.copy(content = newContent))).pure[F]
+              wrapper.topic.publish1(operation) as
+                documents.updated(documentPath, wrapper.copy(document = document.copy(content = newContent)))
 
             case None => documents.pure[F]
           }
