@@ -29,14 +29,26 @@
 <textarea id="textbox" spellcheck="false"></textarea>
 <script>
 
+    const queryString = window.location.search;
+    const urlParams = new URLSearchParams(queryString);
+    let owner = urlParams.get("owner")
+
+    if(owner == null) {
+        owner = ""
+    }
+
+    console.log(owner)
+
+
     let filename = window.location.pathname.split("/")[1]
+    
     let token = window.localStorage.getItem("token")
     const textbox = document.getElementById("textbox");
 
     //initial request to load text contents on startup
 
     const xhr = new XMLHttpRequest();
-    xhr.open("GET", "http://localhost:9002/"+ filename + "/file");
+    xhr.open("GET", "http://localhost:9002/"+ filename + "/file?owner=" + owner);
     xhr.setRequestHeader('Authorization',"Bearer " + token)
     xhr.send();
     xhr.responseType = "text";
@@ -49,7 +61,7 @@
         }
     };
 
-    const socket = new WebSocket("ws://localhost:9002/"+ filename +"/editFile/ws");
+    const socket = new WebSocket("ws://localhost:9002/"+ filename +"/editFile/ws?authToken="+token + "&owner=" + owner);
 
     const identifier = Math.floor(Math.random() * 100000);
 

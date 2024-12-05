@@ -78,16 +78,22 @@ object Route {
 
         AuthedRoutes.of {
 
-          case authReq @ GET -> Root / _ / "editFile" as username =>
+          case authReq @ GET -> Root / _ / "editFile" :? ownerParams as _ =>
+
+            println(ownerParams)
 
             val path = "./src/main/resources/textpad.html"
 
             StaticFile.fromPath(fs2.io.file.Path(path), Some(authReq.req)).getOrElseF(NotFound())
 
-          case authReq @ GET -> Root / filename / "file" as username =>
+          case authReq @ GET -> Root / filename / "file" :? ownerParams as username =>
+
+            val owner = ownerParams("owner").head
+
+            println(owner)
 
             for {
-              filePathResult <- service.getFilePath(username, filename)
+              filePathResult <- service.getFilePath(username, owner, filename)
               response <- filePathResult match {
                 case Left(e) => BadRequest(e.toString)
                 case Right(path) =>
@@ -111,15 +117,15 @@ object Route {
 
         AuthedRoutes.of {
 
-          case GET -> Root / filepath / "editFile" / "ws" as username =>
+          case GET -> Root / filepath / "editFile" / "ws" :? ownerParams as username =>
 
-            val path = s"./Documents/$username/$filepath"
+            val owner = ownerParams("owner").head
 
             def send(): Stream[F, WebSocketFrame] = {
               topic.subscribe(maxQueued = 100)
             }
 
-            def receive():
+            def receive(path: String):
             Pipe[F, WebSocketFrame, Unit] = { stream =>
 
               stream.through(parseFrameToOperation[F]).foreach {
@@ -134,11 +140,19 @@ object Route {
 
             for {
 
-              _ <- handler.open(path)
+              filePathResult <- service.getFilePath(username, owner, filepath)
 
-              response <- wsb.withOnClose(handler.unsubscribe(path)).build(send(), receive())
+              r <- filePathResult match {
+                case Left(e) => BadRequest(e.toString)
+                case Right(path) => for {
 
-            } yield response
+                  _ <- handler.open(path)
+
+                  response <- wsb.withOnClose(handler.unsubscribe(path)).build(send(), receive(path))
+                } yield response
+              }
+
+            } yield r
         }
       }
     }
@@ -151,7 +165,7 @@ object Route {
       middleware {
         AuthedRoutes.of {
 
-          case authReq @ GET -> Root / "userPage" as username =>
+          case authReq @ GET -> Root / "userPage" as _ =>
             val path = "./src/main/resources/userPage.html"
             StaticFile.fromPath(fs2.io.file.Path(path), Some(authReq.req)).getOrElseF(NotFound())
 
@@ -173,6 +187,18 @@ object Route {
               }
             } yield response
 
+          case POST -> Root / "invite" :? params as ownerName =>
+            val guest = params("guest").head
+            val filename = params("filename").head
+
+            for{
+              result <- service.inviteUser(guest, ownerName, filename)
+              response <- result match {
+                case Left(e) => BadRequest(e.toString)
+                case Right(_) => Ok("user invited")
+              }
+            } yield response
+
           case GET -> Root / _ / "listFiles" as username =>
             for {
               files <- service.listFileNamesFromUser(username)
@@ -184,7 +210,7 @@ object Route {
     }
   }
 
-  def routesToApp[F[_]: Async](routeSeq: Seq[HttpRoutes[F]]): HttpApp[F] = {
+  def routesToApp[F[_]: Async](routeSeq: Seq[HttpRoutes[F]]): HttpApp[F] = ErrorHandling {
     routeSeq.reduce(_ <+> _)
   }.orNotFound
 

@@ -1,5 +1,6 @@
 package entity
 
+import cats.implicits.catsSyntaxOptionId
 import entity.Registry.path
 import io.circe.generic.JsonCodec
 import io.circe.parser.parse
@@ -7,7 +8,6 @@ import io.circe.Json
 import io.circe.syntax.EncoderOps
 
 import scala.jdk.CollectionConverters._
-
 import java.nio.file.{Files, Path, Paths}
 
 @JsonCodec
@@ -17,24 +17,27 @@ case class Registry private (users: Set[User]) {
 
   def insertUser(user: User): Registry = new Registry(users + user)
 
-  def isOwnerOf(name: String, filePath: String): Boolean = getUserOwnedFiles(name).find(_ == filePath) match {
+  def isOwnerOf(name: String, filePath: String): Boolean =
+    getUserOwnedFiles(name).find(_ == s"$name/$filePath") match {
     case Some(_) => true
     case None => false
   }
 
-  def isMemberOf(name: String, filePath: String): Boolean = getUserAssociatedFiles(name).find(_ == filePath) match {
+  def isMemberOf(name: String, owner: String ,filePath: String): Boolean =
+    getUserAssociatedFiles(name).find(_.matches(s"$owner/$filePath")) match {
     case Some(_) => true
     case None => false
   }
 
-  def hasAccess(name: String, filePath: String): Boolean = getUserOwnedFiles(name).find(_ == filePath) match {
-    case Some(_) => true
-    case None => false
-  }
+  def hasAccess(name: String, owner: String, filePath: String): Boolean =
+    isOwnerOf(name, filePath) || isMemberOf(name, owner, filePath)
 
-  def getFilePathFromUser(name: String, filePath: String): Option[String] =
-    if(hasAccess(name, filePath))
-      getAllUserFiles(name).find(_ == filePath)
+  def getFilePathFromUser(name: String, owner: String, filePath: String): Option[String] =
+    if(hasAccess(name, owner, filePath))
+      getUserOwnedFiles(name).find(_ == s"$name/$filePath") match {
+        case Some(value) => value.some
+        case None => if(name != owner) getUserAssociatedFiles(name).find(_ == s"$owner/$filePath") else None
+      }
     else
       None
 
@@ -43,7 +46,13 @@ case class Registry private (users: Set[User]) {
       val folderPath = Paths.get(s"./Documents/${user.name}")
 
       if (Files.exists(folderPath)){
-        Files.list(folderPath).iterator().asScala.map(_.toFile.getName).toSet
+        Files
+          .list(folderPath)
+          .iterator()
+          .asScala
+          .map(_.toFile.getName)
+          .toSet
+          .map((f:String) => s"$name/$f")
       } else { Set.empty }
 
     case None => Set.empty
@@ -59,13 +68,24 @@ case class Registry private (users: Set[User]) {
     case None => Set.empty
   }
 
+  def makeUserMemberOfFile(guestName: String, ownerName: String, filename: String) : (Registry, Boolean) =
+    if(isOwnerOf(ownerName, filename)) {
+      getUser(guestName) match {
+        case Some(guestUser) =>
+          val updatedGuestUser = User(guestUser.name, guestUser.memberOf + s"$ownerName/$filename")
+          ( new Registry( (users - guestUser ) + updatedGuestUser) , true)
+        case None => (this, false)
+      }
+    }
+    else { (this, false) }
+
   // change to F[Unit] eventually
   def update(): Unit = Files.write(path, identity(this).asJson.toString().getBytes)
 }
 
 object Registry {
 
-  private val path = Path.of(getClass.getClassLoader.getResource("registry.json").getFile)
+  private val path = Paths.get("./src/main/resources/registry.json")
 
   def load: Registry = {
 

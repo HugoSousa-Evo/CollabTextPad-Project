@@ -17,13 +17,15 @@ trait AuthService[F[_]] {
 
   def logIn(username: String): F[Either[AuthError, String]]
 
-  def getFilePath(username: String, filename: String): F[Either[AuthError, String]]
+  def getFilePath(username: String, owner: String,filename: String): F[Either[AuthError, String]]
 
   def listFileNamesFromUser(username: String): F[Set[String]]
 
   def userCreateFile(username: String, filename: String): F[Either[FileError, Path]]
 
   def userDeleteFile(username: String, filename: String): F[Either[AuthError, Boolean]]
+
+  def inviteUser(guestName: String, ownerName: String, filename: String): F[Either[AuthError, Boolean]]
 
 }
 
@@ -107,12 +109,12 @@ object AuthService {
          } yield result
        }
 
-       def getFilePath(username: String, filename: String): F[Either[AuthError, String]] = {
+       def getFilePath(username: String, owner: String, filename: String): F[Either[AuthError, String]] = {
          for {
            registry <- userRegistry.get
          } yield
-           registry.getFilePathFromUser(username, filename) match {
-             case Some(filename) => s"./Documents/$username/$filename".asRight
+           registry.getFilePathFromUser(username,owner,filename) match {
+             case Some(filename) => s"./Documents/$filename".asRight
              case None => AuthError.InvalidFileAccess.asLeft
            }
        }
@@ -125,7 +127,7 @@ object AuthService {
        def userCreateFile(username: String, filename: String): F[Either[FileError, Path]] =
          for {
            registry <- userRegistry.get
-         } yield registry.getFilePathFromUser(username, filename) match {
+         } yield registry.getFilePathFromUser(username, username,filename) match {
            case Some(_) => FileError.FileAlreadyExistsForUser.asLeft
            case None => {
 
@@ -150,6 +152,18 @@ object AuthService {
              AuthError.NoPermissionForOperation.asLeft
            }
          }
+
+       def inviteUser(guestName: String, ownerName: String, filename: String): F[Either[AuthError, Boolean]] =
+         for {
+           b <- userRegistry.modify { registry =>
+             val (newReg, success) = registry.makeUserMemberOfFile(guestName, ownerName, filename)
+             if(success){
+               newReg.update()
+               (newReg, success)
+             } else { (newReg, success) }
+           }
+
+         } yield if(b) b.asRight else AuthError.NoPermissionForOperation.asLeft
 
      }.pure[F]
 }

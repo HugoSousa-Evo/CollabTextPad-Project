@@ -1,3 +1,15 @@
 {
-  "users": []
+  "users" : [
+    {
+      "name" : "aaa",
+      "memberOf" : [
+      ]
+    },
+    {
+      "name" : "bbb",
+      "memberOf" : [
+        "aaa/bbb"
+      ]
+    }
+  ]
 }
