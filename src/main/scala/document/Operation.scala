@@ -1,4 +1,4 @@
-package entity
+package document
 
 import io.circe.generic.JsonCodec
 import io.circe.syntax.EncoderOps

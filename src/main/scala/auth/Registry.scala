@@ -1,14 +1,14 @@
-package entity
+package auth
 
-import cats.implicits.catsSyntaxOptionId
-import entity.Registry.path
+import cats.effect.kernel.Sync
+import cats.implicits.{catsSyntaxApplicativeId, catsSyntaxOptionId}
+import io.circe.Json
 import io.circe.generic.JsonCodec
 import io.circe.parser.parse
-import io.circe.Json
 import io.circe.syntax.EncoderOps
 
-import scala.jdk.CollectionConverters._
 import java.nio.file.{Files, Path, Paths}
+import scala.jdk.CollectionConverters._
 
 @JsonCodec
 case class Registry private (users: Set[User]) {
@@ -68,6 +68,12 @@ case class Registry private (users: Set[User]) {
     case None => Set.empty
   }
 
+  def doesFileExist(username: String, owner: String, filePath: String): Boolean =
+    getAllUserFiles(username).find(_.matches(s"$owner/$filePath")) match {
+      case Some(_) => true
+      case None => false
+    }
+
   def makeUserMemberOfFile(guestName: String, ownerName: String, filename: String) : (Registry, Boolean) =
     if(isOwnerOf(ownerName, filename)) {
       getUser(guestName) match {
@@ -79,8 +85,7 @@ case class Registry private (users: Set[User]) {
     }
     else { (this, false) }
 
-  // change to F[Unit] eventually
-  def update(): Unit = Files.write(path, identity(this).asJson.toString().getBytes)
+  def update[F[_]: Sync](): F[Path] = Files.write(Registry.path, identity(this).asJson.toString().getBytes).pure[F]
 }
 
 object Registry {

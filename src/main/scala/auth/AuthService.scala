@@ -4,11 +4,11 @@ import auth.AuthConfig.SecretConfigValue
 import cats.implicits._
 import cats.effect.Ref
 import cats.effect.kernel.Sync
-import entity.document.FileError
-import entity.{Registry, User}
+import document.FileError
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim}
 
 import java.nio.file.{Files, Path, Paths}
+import java.time.Instant
 import scala.concurrent.duration.FiniteDuration
 
 trait AuthService[F[_]] {
@@ -17,7 +17,9 @@ trait AuthService[F[_]] {
 
   def logIn(username: String): F[Either[AuthError, String]]
 
-  def getFilePath(username: String, owner: String,filename: String): F[Either[AuthError, String]]
+  def checkFilePath(username: String, owner: String, filename: String): F[Either[FileError, Boolean]]
+
+  def getFilePath(username: String, owner: String, filename: String): F[Either[AuthError, String]]
 
   def listFileNamesFromUser(username: String): F[Set[String]]
 
@@ -30,6 +32,27 @@ trait AuthService[F[_]] {
 }
 
 object AuthService {
+
+  private def issueToken[F[_]: Sync](now: Instant,
+                                     username: String,
+                                     jwtExpirationTime: FiniteDuration,
+                                     jwtSecret: SecretConfigValue[String]
+                            ): F[Either[AuthError, String]] = Sync[F].delay {
+
+      val issuedAtSeconds = now.getEpochSecond
+
+      val claim = JwtClaim(
+        subject = username.some,
+        issuedAt = issuedAtSeconds.some,
+        expiration = (issuedAtSeconds + jwtExpirationTime.toSeconds).some
+      )
+
+      Jwt.encode(
+        claim = claim,
+        algorithm = JwtAlgorithm.HS512,
+        key = jwtSecret.value
+      ).asRight[AuthError]
+    }
 
   def inMemory[F[_]: Sync](
                             jwtSecret: SecretConfigValue[String],
@@ -46,7 +69,6 @@ object AuthService {
               case Some(_) => (registry, true)
               case None =>
                 val newReg = registry.insertUser(User(username, Set.empty))
-                newReg.update()
                 (newReg, false)
             }
           }
@@ -55,22 +77,10 @@ object AuthService {
 
           result <-
             if (userAlreadyExists) AuthError.UserAlreadyExists.asLeft[String].pure[F]
-            else
-              Sync[F].delay {
-                val issuedAtSeconds = now.getEpochSecond
-
-                val claim = JwtClaim(
-                  subject = username.some,
-                  issuedAt = issuedAtSeconds.some,
-                  expiration = (issuedAtSeconds + jwtExpirationTime.toSeconds).some
-                )
-
-                Jwt.encode(
-                    claim = claim,
-                    algorithm = JwtAlgorithm.HS512,
-                    key = jwtSecret.value
-                  ).asRight[AuthError]
-              }
+            else {
+              userRegistry.get.flatMap(_.update()) *>
+              issueToken(now, username, jwtExpirationTime, jwtSecret)
+            }
 
         } yield result
       }
@@ -90,23 +100,20 @@ object AuthService {
            result <-
              if (!userAlreadyExists) AuthError.UserDoesNotExist.asLeft[String].pure[F]
              else
-               Sync[F].delay {
-                 val issuedAtSeconds = now.getEpochSecond
-
-                 val claim = JwtClaim(
-                   subject = username.some,
-                   issuedAt = issuedAtSeconds.some,
-                   expiration = (issuedAtSeconds + jwtExpirationTime.toSeconds).some
-                 )
-
-                 Jwt.encode(
-                   claim = claim,
-                   algorithm = JwtAlgorithm.HS512,
-                   key = jwtSecret.value
-                 ).asRight[AuthError]
-               }
+               issueToken(now, username, jwtExpirationTime, jwtSecret)
 
          } yield result
+       }
+
+       def checkFilePath(username: String, owner: String, filename: String): F[Either[FileError, Boolean]] = {
+         for {
+           registry <- userRegistry.get
+         } yield
+           if (registry.doesFileExist(username, owner, filename)) {
+             true.asRight
+           } else {
+             FileError.FileDoesNotExist.asLeft
+           }
        }
 
        def getFilePath(username: String, owner: String, filename: String): F[Either[AuthError, String]] = {
@@ -119,6 +126,9 @@ object AuthService {
            }
        }
 
+
+       // --- USER OPERATIONS ---
+
        def listFileNamesFromUser(username: String): F[Set[String]] =
          for {
            reg <- userRegistry.get
@@ -127,8 +137,8 @@ object AuthService {
        def userCreateFile(username: String, filename: String): F[Either[FileError, Path]] =
          for {
            registry <- userRegistry.get
-         } yield registry.getFilePathFromUser(username, username,filename) match {
-           case Some(_) => FileError.FileAlreadyExistsForUser.asLeft
+         } yield registry.getFilePathFromUser(username, username, filename) match {
+           case Some(_) => FileError.FileAlreadyExists.asLeft
            case None => {
 
              val folderPath = Paths.get(s"./Documents/$username")

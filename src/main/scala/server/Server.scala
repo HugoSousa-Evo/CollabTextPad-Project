@@ -1,24 +1,20 @@
-package services.server
+package server
 
-import auth.{AuthConfig, AuthMiddleware, AuthService}
+import auth.{AuthConfig, AuthMiddleware, AuthRoutes, AuthService, Registry}
 import cats.effect.Resource
 import cats.effect.implicits.effectResourceOps
 import cats.effect.kernel.{Async, Ref}
-import cats.effect.std.Queue
 import com.comcast.ip4s.IpLiteralSyntax
-import entity.document.{DocumentConfig, DocumentHandler}
-import entity.{Operation, Registry}
-import fs2.concurrent.Topic
+import document.{DocumentConfig, DocumentHandler}
 import fs2.io.net.Network
 import org.http4s.ember.server.EmberServerBuilder
-import org.http4s.websocket.WebSocketFrame
 import pureconfig.ConfigSource
 import pureconfig.generic.auto._
 import pureconfig.module.catseffect.syntax._
-import services.Route
 
 object Server {
 
+  // Make this a config file as well
   private val serverHost = ipv4"127.0.0.1"
   private val serverPort = port"9002"
 
@@ -26,14 +22,17 @@ object Server {
 
     for {
 
+      // Loads the config parameters for the auth service and middleware
       authConfig <- ConfigSource.default.at("auth-config").loadF[F, AuthConfig]().toResource
 
+      // Loads the current User Registry from memory
       registryRef <- Ref.of[F, Registry](Registry.load).toResource
 
-
+      // Loads general config parameters for all documents
       config <- ConfigSource.default.at("document-config").loadF[F, DocumentConfig]().toResource
       handler <- DocumentHandler.of[F](config.saveRate).toResource
 
+      // Creates the Authentication Service
       authService <- AuthService
         .inMemory[F]( 
           authConfig.jwtSecret, 
@@ -41,23 +40,27 @@ object Server {
           userRegistry = registryRef
         ).toResource
 
+      // Creates the Authentication Middleware
       middleware = AuthMiddleware[F](
         jwtSecret = authConfig.jwtSecret
       )
 
-      authRoutes = Route.AuthRoutes[F](authService,middleware)
-      openRoutes = Route.OpenRoutes[F](authService)
+      // Creates the route handlers
+      authRouteHandler = AuthRouteHandler[F](authService,middleware)
+      openRouteHandler = OpenRouteHandler[F](authService)
 
+
+      // Builds the server with the desired endpoints
       _ <- EmberServerBuilder
         .default[F]
         .withHost(serverHost)
         .withPort(serverPort)
-        .withHttpWebSocketApp(ws => Route.routesToApp[F]( Seq(
+        .withHttpWebSocketApp(ws => RouteHandler.routesToApp[F]( Seq(
 
-          openRoutes.userAuthRoute(),
-          authRoutes.textPadRoute(),
-          authRoutes.userOperationRoute(),
-          authRoutes.wsOperationRoute(ws, handler)
+          OpenRoutes.userAuthRoute(openRouteHandler),
+          AuthRoutes.textPadRoute(authRouteHandler),
+          AuthRoutes.userOperationRoute(authRouteHandler),
+          AuthRoutes.wsOperationRoute(ws, handler, authRouteHandler)
 
         ))).build
 

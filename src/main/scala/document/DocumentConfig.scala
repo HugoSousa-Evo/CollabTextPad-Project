@@ -1,4 +1,4 @@
-package entity.document
+package document
 
 import scala.concurrent.duration.FiniteDuration
 

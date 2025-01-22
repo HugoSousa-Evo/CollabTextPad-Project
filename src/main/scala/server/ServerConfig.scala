@@ -1,4 +1,4 @@
-package services.server
+package server
 
 import com.comcast.ip4s.{Host, Port}
 import pureconfig.ConfigReader

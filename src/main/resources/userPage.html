@@ -56,7 +56,7 @@
         }
 
         function deleteFile() {
-            let filename = document.getElementById("create").value
+            let filename = document.getElementById("delete").value
 
             fetch("http://localhost:9002/user/deleteFile/" + filename, {
                 method: 'POST',
