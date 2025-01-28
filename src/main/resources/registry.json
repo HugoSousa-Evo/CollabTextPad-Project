@@ -1,7 +1,13 @@
 {
   "users" : [
     {
-      "name" : "aaa",
+      "name" : "user2",
+      "memberOf" : [
+        "user1/abc"
+      ]
+    },
+    {
+      "name" : "ccc",
       "memberOf" : [
       ]
     },
@@ -12,9 +18,8 @@
       ]
     },
     {
-      "name" : "user2",
+      "name" : "aaa",
       "memberOf" : [
-        "user1/abc"
       ]
     },
     {

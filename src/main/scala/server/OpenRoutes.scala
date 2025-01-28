@@ -41,11 +41,13 @@ object OpenRoutes {
           }
         } yield response
 
+      /*
       // Serves the sign/login page file
       case req @ GET -> Root / "signIn" =>
         val path = "./src/main/resources/signUser.html"
 
         StaticFile.fromPath(fs2.io.file.Path(path), Some(req)).getOrElseF(NotFound())
+      */
     }
   }
 }

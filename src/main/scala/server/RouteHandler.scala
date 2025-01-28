@@ -7,18 +7,21 @@ import document.Operation
 import fs2.Pipe
 import io.circe.Json
 import io.circe.parser.parse
+import org.http4s.headers.Origin
 import org.http4s.server.AuthMiddleware
-import org.http4s.server.middleware.ErrorHandling
+import org.http4s.server.middleware.{CORS, ErrorHandling}
 import org.http4s.websocket.WebSocketFrame
-import org.http4s.{HttpApp, HttpRoutes}
+import org.http4s.{HttpApp, HttpRoutes, Uri}
 
 sealed trait RouteHandler
 object RouteHandler {
 
+  private val corsService = CORS.policy.withAllowOriginAll
+
   // utils method to join provided routes to a HttpApp
-  def routesToApp[F[_]: Async](routeSeq: Seq[HttpRoutes[F]]): HttpApp[F] = ErrorHandling {
+  def routesToApp[F[_]: Async](routeSeq: Seq[HttpRoutes[F]]): HttpApp[F] = corsService(ErrorHandling {
     routeSeq.reduce(_ <+> _)
-  }.orNotFound
+  }.orNotFound)
 
   // utils method to parse the Json received into Operations objects
   def parseFrameToOperation[F[_]: Async]: Pipe[F, WebSocketFrame, Operation] = _.collect {
