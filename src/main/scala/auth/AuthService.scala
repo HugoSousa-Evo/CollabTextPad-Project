@@ -29,6 +29,7 @@ trait AuthService[F[_]] {
 
   def inviteUser(guestName: String, ownerName: String, filename: String): F[Either[AuthError, Boolean]]
 
+  def getNamesOfAllUsers: F[Set[String]]
 }
 
 object AuthService {
@@ -153,15 +154,26 @@ object AuthService {
 
        def userDeleteFile(username: String, filename: String): F[Either[AuthError, Boolean]] =
          for {
-           registry <- userRegistry.get
-         } yield {
-           if(registry.isOwnerOf(username, filename)){
-               Files.deleteIfExists(Paths.get(s"./Documents/$username/$filename")).asRight
+           result <- userRegistry.modify { registry =>
+             if(registry.isOwnerOf(username, filename)){
+
+               //Delete all mention in guest users
+               val updatedUserList = registry.users.map { prevUser =>
+                  if (prevUser.memberOf.contains(s"$username/$filename")) {
+                    User(prevUser.name, prevUser.memberOf - s"$username/$filename")
+                  } else {
+                    prevUser
+                  }
+               }
+
+               (registry.updateAllUsers(updatedUserList), Files.deleteIfExists(Paths.get(s"./Documents/$username/$filename")).asRight)
+             }
+             else{
+               (registry, AuthError.NoPermissionForOperation.asLeft)
+             }
            }
-           else{
-             AuthError.NoPermissionForOperation.asLeft
-           }
-         }
+           _ <- userRegistry.get.flatMap(_.update())
+         } yield result
 
        def inviteUser(guestName: String, ownerName: String, filename: String): F[Either[AuthError, Boolean]] =
          for {
@@ -174,6 +186,11 @@ object AuthService {
            }
 
          } yield if(b) b.asRight else AuthError.NoPermissionForOperation.asLeft
+
+       def getNamesOfAllUsers: F[Set[String]] =
+         for {
+           reg <- userRegistry.get
+         } yield reg.getNamesOfAllUsers
 
      }.pure[F]
 }

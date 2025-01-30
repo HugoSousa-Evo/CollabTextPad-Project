@@ -13,7 +13,11 @@ import scala.jdk.CollectionConverters._
 @JsonCodec
 case class Registry private (users: Set[User]) {
 
+  def updateAllUsers(users: Set[User]) = new Registry(users)
+
   def getUser(name: String): Option[User] = users.find(_.name == name)
+
+  def getNamesOfAllUsers: Set[String] = users.map(_.name)
 
   def insertUser(user: User): Registry = new Registry(users + user)
 

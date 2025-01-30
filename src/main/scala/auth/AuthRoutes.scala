@@ -148,10 +148,16 @@ object AuthRoutes {
             }
           } yield response
 
-        // LIST FILES FOR CURRENT USER (unused for now)
-        case GET -> Root / _ / "listFiles" as username =>
+        case GET -> Root / "userList" as username =>
           for {
-            files <- handler.service.listFileNamesFromUser(username)
+            usernames <- handler.service.getNamesOfAllUsers
+            response <- Ok(usernames.asJson)
+          } yield response
+
+        // LIST FILES FOR A USER
+        case GET -> Root / user / "listFiles" as username =>
+          for {
+            files <- handler.service.listFileNamesFromUser(user)
             response <- Ok(files.asJson)
           } yield response
       }
