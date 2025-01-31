@@ -18,10 +18,10 @@ sealed trait Operation {
 
 object Operation {
 
-  def emptyInsert: Insert = Insert(0, "", 0)
+  def emptyInsert: Insert = Insert(0, "", "")
 
   @JsonCodec
-  final case class Insert(position: Int, content: String, sentBy: Int) extends Operation {
+  final case class Insert(position: Int, content: String, sentBy: String) extends Operation {
 
     override def operationToTextFrame: WebSocketFrame.Text =
       WebSocketFrame.Text(identity(this).asJson.deepMerge(Map("type" -> "insert").asJson).toString)
@@ -43,7 +43,7 @@ object Operation {
   }
 
   @JsonCodec
-  final case class Delete(position: Int, amount: Int, sentBy: Int) extends Operation {
+  final case class Delete(position: Int, amount: Int, sentBy: String) extends Operation {
 
     override def operationToTextFrame: WebSocketFrame.Text =
       WebSocketFrame.Text(identity(this).asJson.deepMerge(Map("type" -> "delete").asJson).toString)
