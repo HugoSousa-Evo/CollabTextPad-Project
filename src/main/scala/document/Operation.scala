@@ -13,7 +13,7 @@ sealed trait Operation {
 
   def update(op: Operation): Operation
 
-  def operationToTextFrame: WebSocketFrame.Text
+  def operationToTextFrame: WebSocketFrame
 }
 
 object Operation {
@@ -70,5 +70,13 @@ object Operation {
         }
         else identity(this)
     }
+  }
+
+  @JsonCodec
+  final case class Close() extends Operation {
+
+    override def update(op: Operation): Operation = this
+
+    override def operationToTextFrame: WebSocketFrame = WebSocketFrame.Close()
   }
 }

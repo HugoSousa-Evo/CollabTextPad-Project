@@ -134,6 +134,7 @@ object DocumentHandler {
         operation match {
           case o: Operation.Insert => insertAt(documentPath, o)
           case o: Operation.Delete => deleteAt(documentPath, o)
+          case Operation.Close() => sendClose(documentPath)
         }
       }
 
@@ -169,6 +170,17 @@ object DocumentHandler {
               }
               wrapper.topic.publish1(operation) as
                 documents.updated(documentPath, wrapper.copy(document = document.copy(content = newContent)))
+
+            case None => documents.pure[F]
+          }
+        }
+
+      private def sendClose
+      (documentPath: DocumentPath): F[Unit] =
+        documentsRef.evalUpdate { documents =>
+          documents.get(documentPath) match {
+            case Some(wrapper) =>
+              wrapper.topic.publish1(Operation.Close()) as documents
 
             case None => documents.pure[F]
           }
