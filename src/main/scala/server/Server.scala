@@ -58,7 +58,7 @@ object Server {
         .withHttpWebSocketApp(ws => RouteHandler.routesToApp[F]( Seq(
 
           OpenRoutes.userAuthRoute(openRouteHandler),
-          AuthRoutes.textPadRoute(authRouteHandler),
+          AuthRoutes.textPadRoute(authRouteHandler, handler),
           AuthRoutes.userOperationRoute(authRouteHandler),
           AuthRoutes.wsOperationRoute(ws, handler, authRouteHandler)
 

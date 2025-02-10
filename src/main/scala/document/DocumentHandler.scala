@@ -21,6 +21,8 @@ trait DocumentHandler[F[_]] {
 
   // Executes the method related to the respective received operation
   def handle(documentPath: String, operation: Operation): F[Unit]
+
+  def getSubscribers(documentPath: String): F[Int]
 }
 
 object DocumentHandler {
@@ -49,10 +51,11 @@ object DocumentHandler {
 
             // if session already exists, increase subscriber count and subscribe the new user to the topic
             case Some(documentWrapper) =>
-              val newDocumentWrapper =
+              val newDocumentWrapper = {
                 documentWrapper.copy(
                   subscribers = documentWrapper.subscribers + 1
                 )
+              }
               (documents.updated(documentPath, newDocumentWrapper), documentWrapper.topic.subscribe(100)).pure[F]
 
             // if there isn't an open session of this document
@@ -82,7 +85,7 @@ object DocumentHandler {
                           fs2.Stream
                             .emit(documentWithSubscribers.document.content)
                             .through(fs2.text.lines)
-                            .map(_ + "\n")
+                            .map(_ + "\n" )
                             .through(fs2.text.utf8.encode)
                             .through(fs2.io.file.Files[F].writeAll(fs2Path))
                             .compile
@@ -128,6 +131,14 @@ object DocumentHandler {
             // Should never happen, but just in case, updates the map without changes
             case None => documents.pure[F]
           }
+        }
+
+      def getSubscribers(documentPath: DocumentPath): F[Int] =
+        for {
+          documents <- documentsRef.get
+        } yield documents.get(documentPath) match {
+          case Some(session) => session.subscribers
+          case None => 0
         }
 
       def handle(documentPath: DocumentPath, operation: Operation): F[Unit] = {

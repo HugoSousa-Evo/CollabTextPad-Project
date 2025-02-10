@@ -5,6 +5,7 @@ import cats.implicits._
 import document.DocumentHandler
 import fs2.{Pipe, Stream}
 import io.circe.syntax.EncoderOps
+import org.http4s.circe.CirceEntityCodec.circeEntityEncoder
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.server.websocket.WebSocketBuilder2
@@ -19,7 +20,9 @@ import scala.concurrent.duration.DurationInt
 object AuthRoutes {
 
   // endpoints that serve the files for the text editor
-  def textPadRoute[F[_]: Async](handler: AuthRouteHandler[F]): HttpRoutes[F] = {
+  def textPadRoute[F[_]: Async](handler: AuthRouteHandler[F],
+                                documentHandler: DocumentHandler[F]
+                               ): HttpRoutes[F] = {
 
     val dsl = Http4sDsl[F]
     import dsl._
@@ -49,6 +52,21 @@ object AuthRoutes {
             }
           } yield response
 
+        case GET -> Root / filename / "currentUsers" :? ownerParams as username =>
+
+          val owner = ownerParams("owner").head
+
+          for {
+            filePathResult <- handler.service.getFilePath(username, owner, filename)
+            result <- filePathResult match {
+              case Left(e) => BadRequest(e.toString).pure[F]
+              case Right(path) =>
+                for {
+                  users <- documentHandler.getSubscribers(path)
+                } yield Ok(users)
+            }
+            r <- result
+          } yield r
       }
     }
   }

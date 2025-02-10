@@ -14,7 +14,8 @@
     {
       "name" : "bbb",
       "memberOf" : [
-        "aaa/bbb"
+        "aaa/bbb",
+        "aaa/new file"
       ]
     },
     {
