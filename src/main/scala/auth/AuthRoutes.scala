@@ -101,7 +101,7 @@ object AuthRoutes {
               case Right(path) =>
                 for {
                   // subscribes user or opens a new session if it isn't already open
-                  updateStream <- documentHandler.open(path)
+                  updateStream <- documentHandler.open(path, username)
                   // transform Operations objects into text to send
                   operationStream = updateStream.map(_.operationToTextFrame)
                   // makes sure websocket connection is kept alive
@@ -110,7 +110,7 @@ object AuthRoutes {
                   sendStream = operationStream.merge(pingStream)
 
                   // build websocket connection
-                  response <- wsb.withOnClose(documentHandler.unsubscribe(path)).build(sendStream, receive(path))
+                  response <- wsb.withOnClose(documentHandler.unsubscribe(path, username)).build(sendStream, receive(path))
 
                 } yield response
             }
