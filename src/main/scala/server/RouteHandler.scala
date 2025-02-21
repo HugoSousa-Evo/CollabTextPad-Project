@@ -16,7 +16,7 @@ import org.http4s.{HttpApp, HttpRoutes, Uri}
 sealed trait RouteHandler
 object RouteHandler {
 
-  private val corsService = CORS.policy.withAllowOriginAll
+  private val corsService = CORS.policy.withAllowOriginHost(_.host.value.matches("localhost")).withAllowCredentials(true)
 
   // utils method to join provided routes to a HttpApp
   def routesToApp[F[_]: Async](routeSeq: Seq[HttpRoutes[F]]): HttpApp[F] = corsService(ErrorHandling {

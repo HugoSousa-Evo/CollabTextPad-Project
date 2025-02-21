@@ -7,11 +7,6 @@
       ]
     },
     {
-      "name" : "ccc",
-      "memberOf" : [
-      ]
-    },
-    {
       "name" : "bbb",
       "memberOf" : [
         "aaa/bbb",
@@ -26,7 +21,14 @@
     {
       "name" : "user1",
       "memberOf" : [
-        "user2/law"
+        "user2/law",
+        "aaa/new file"
+      ]
+    },
+    {
+      "name" : "ccc",
+      "memberOf" : [
+        "aaa/new file"
       ]
     }
   ]

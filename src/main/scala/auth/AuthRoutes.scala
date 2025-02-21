@@ -175,6 +175,7 @@ object AuthRoutes {
         // LIST FILES FOR A USER
         case GET -> Root / user / "listFiles" as username =>
           for {
+            // get user owned and shared separate then join in a json
             files <- handler.service.listFileNamesFromUser(user)
             response <- Ok(files.asJson)
           } yield response

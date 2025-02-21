@@ -5,7 +5,7 @@ import cats.implicits._
 import io.circe.syntax.EncoderOps
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
-import org.http4s.{HttpRoutes, StaticFile}
+import org.http4s.{HttpRoutes, ResponseCookie, StaticFile}
 
 // endpoints that don't need any kind of authentication
 object OpenRoutes {

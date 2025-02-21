@@ -1,17 +1,24 @@
 package auth
 
 import auth.AuthConfig.SecretConfigValue
-import cats.data.{OptionT, Kleisli}
+import cats.data.{Kleisli, NonEmptyList, OptionT}
 import cats.effect.kernel.Sync
 import org.http4s.Credentials.Token
-import org.http4s.{Request, AuthScheme}
-import org.http4s.headers.Authorization
+import org.http4s.{AuthScheme, Request, RequestCookie}
+import org.http4s.headers.{Authorization, Cookie}
 import org.http4s.server.AuthMiddleware
-import pdi.jwt.{JwtOptions, Jwt, JwtAlgorithm}
+import pdi.jwt.{Jwt, JwtAlgorithm, JwtOptions}
 
 object AuthMiddleware {
 
   def apply[F[_]: Sync](jwtSecret: SecretConfigValue[String]): AuthMiddleware[F, String] = {
+
+    def getBearerTokenFromCookie(request: Request[F]): Option[String] =
+      request.headers
+        .get[Cookie]
+        .collect { case Cookie(values) =>
+          values.find(_.name.matches("token"))
+        }.fold(Option.empty[String])(_.map(_.content))
 
     def getBearerToken(request: Request[F]): Option[String] =
       request.headers
